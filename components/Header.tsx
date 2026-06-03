@@ -7,10 +7,13 @@ import { useState } from "react";
 import { site } from "@/lib/content";
 import { useSiteConfig } from "@/components/SiteConfigProvider";
 
+function isNavActive(pathname: string, href: string) {
+  return href === "/" ? pathname === "/" : pathname.startsWith(href);
+}
+
 function NavLink({ href, label }: { href: string; label: string }) {
   const pathname = usePathname();
-  const isActive =
-    href === "/" ? pathname === "/" : pathname.startsWith(href);
+  const isActive = isNavActive(pathname, href);
 
   return (
     <Link
@@ -24,9 +27,32 @@ function NavLink({ href, label }: { href: string; label: string }) {
   );
 }
 
+function NavCta({ href, label }: { href: string; label: string }) {
+  const pathname = usePathname();
+  const isActive = isNavActive(pathname, href);
+
+  return (
+    <Link
+      href={href}
+      className={`btn shrink-0 border-salmon-dark px-3 py-1.5 text-xs tracking-wide md:text-sm ${
+        isActive
+          ? "bg-salmon text-white"
+          : "bg-salmon-dark text-white hover:bg-salmon"
+      }`}
+    >
+      {label}
+    </Link>
+  );
+}
+
 export function Header() {
   const { nav } = useSiteConfig();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const ctaItem = nav.find((item) => item.cta || item.href === "/send-flowers");
+  const textNav = nav.filter(
+    (item) => item !== ctaItem && item.href !== "/send-flowers",
+  );
 
   return (
     <header className="site-header sticky top-0 z-50 border-b border-parchment bg-cream">
@@ -45,8 +71,14 @@ export function Header() {
           />
         </Link>
 
-        <nav className="hidden items-center gap-5 md:flex" aria-label="Main">
-          {nav.map((item) => (
+        <nav
+          className="hidden items-center gap-4 md:flex md:gap-5"
+          aria-label="Main"
+        >
+          {ctaItem ? (
+            <NavCta href={ctaItem.href} label={ctaItem.label} />
+          ) : null}
+          {textNav.map((item) => (
             <NavLink key={item.href} href={item.href} label={item.label} />
           ))}
         </nav>
@@ -76,7 +108,18 @@ export function Header() {
           aria-label="Mobile"
         >
           <ul className="flex flex-col gap-3">
-            {nav.map((item) => (
+            {ctaItem ? (
+              <li>
+                <Link
+                  href={ctaItem.href}
+                  className="btn inline-flex w-full justify-center border-salmon-dark bg-salmon-dark text-white"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  {ctaItem.label}
+                </Link>
+              </li>
+            ) : null}
+            {textNav.map((item) => (
               <li key={item.href}>
                 <Link
                   href={item.href}

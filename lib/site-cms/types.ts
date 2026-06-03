@@ -27,6 +27,8 @@ export type SiteContentOverrides = {
     subtitle?: string;
     primaryCtaLabel?: string;
     primaryCtaHref?: string;
+    secondaryCtaLabel?: string;
+    secondaryCtaHref?: string;
   };
   homeAbout?: string[];
   homeSections?: {
@@ -105,6 +107,8 @@ export type SiteNavItemRow = {
 export type ResolvedNavItem = {
   label: string;
   href: string;
+  /** Primary nav CTA (e.g. Send Flowers) */
+  cta?: boolean;
 };
 
 export type ResolvedSiteCopy = {
@@ -116,6 +120,7 @@ export type ResolvedSiteCopy = {
     title: string;
     subtitle: string;
     primaryCta: { label: string; href: string };
+    secondaryCta?: { label: string; href: string };
   };
   homeAbout: string[];
   homeSections: {

@@ -21,7 +21,6 @@ export default async function HomePage() {
     <HomePageContent
       heroFrame={config.theme.heroFrame}
       heroLayout={config.theme.heroLayout}
-      siteMedia={siteMedia}
       heroSlides={heroSlides}
       copy={config.copy}
     />

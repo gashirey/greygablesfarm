@@ -1,6 +1,5 @@
-import { AnnouncementBar } from "@/components/AnnouncementBar";
 import { Footer } from "@/components/Footer";
-import { Header } from "@/components/Header";
+import { MainChrome } from "@/components/MainChrome";
 import { SiteConfigProvider } from "@/components/SiteConfigProvider";
 import { getPublicSiteConfig, getResolvedSiteTheme } from "@/lib/site-cms/queries";
 
@@ -24,9 +23,7 @@ export default async function MainSiteLayout({
         className="site-theme type-body flex min-h-full flex-col"
         style={themeStyle}
       >
-        <AnnouncementBar />
-        <Header />
-        {children}
+        <MainChrome>{children}</MainChrome>
         <Footer />
       </div>
     </SiteConfigProvider>

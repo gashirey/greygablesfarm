@@ -31,8 +31,22 @@ Add the same in **Vercel**. Never expose the secret key to the browser.
 | `POST /api/contacts` | General upsert (any form) |
 | `POST /api/subscribe` | Footer newsletter signup |
 | `POST /api/contact` | Contact page inquiry |
+| `POST /api/delivery-inquiry` | Send Flowers delivery inquiry |
 
 Legacy `POST /api/subscribe/mailing` and `/sms` still work but are deprecated.
+
+## Delivery inquiries
+
+Run `supabase/migrations/014_delivery_inquiries.sql` for the `delivery_inquiries` table and optional **Send Flowers** nav row.
+
+Email notifications use [Resend](https://resend.com) when configured:
+
+```bash
+RESEND_API_KEY=re_...
+RESEND_FROM="Grey Gables <notifications@greygablesfarm.com>"
+```
+
+Without `RESEND_API_KEY`, inquiries are still saved; email is skipped (check server logs).
 
 ## 5. Segmentation examples
 

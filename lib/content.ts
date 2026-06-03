@@ -28,9 +28,11 @@ export const site = {
 } as const;
 
 export const heroHome = {
-  title: "Seasonal Flowers from Central Virginia",
-  subtitle: "Weekly harvests and limited seasonal availability.",
-  primaryCta: { label: "Current Availability", href: "/available-now" },
+  title: "Grown here. Arranged here. Delivered today.",
+  subtitle:
+    "Custom arrangements grown and designed on our Louisa County farm — delivered same-day across Central Virginia.",
+  primaryCta: { label: "Send flowers", href: "/send-flowers" },
+  secondaryCta: { label: "See what's growing", href: "/available-now" },
 } as const;
 
 /** Single image on homepage — calmer hero */
@@ -125,6 +127,7 @@ export const ordering = {
 } as const;
 
 export const nav = [
+  { label: "Send Flowers", href: "/send-flowers", cta: true },
   { label: "Home", href: "/" },
   { label: "Availability", href: "/available-now" },
   { label: "About", href: "/about" },

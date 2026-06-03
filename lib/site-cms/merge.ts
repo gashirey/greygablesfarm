@@ -30,6 +30,19 @@ export function mergeSiteCopy(
           overrides.heroHome?.primaryCtaLabel ?? heroHome.primaryCta.label,
         href: overrides.heroHome?.primaryCtaHref ?? heroHome.primaryCta.href,
       },
+      secondaryCta:
+        overrides.heroHome?.secondaryCtaLabel || overrides.heroHome?.secondaryCtaHref
+          ? {
+              label:
+                overrides.heroHome?.secondaryCtaLabel ??
+                heroHome.secondaryCta?.label ??
+                "",
+              href:
+                overrides.heroHome?.secondaryCtaHref ??
+                heroHome.secondaryCta?.href ??
+                "",
+            }
+          : heroHome.secondaryCta,
     },
     homeAbout: overrides.homeAbout?.length
       ? overrides.homeAbout
@@ -62,8 +75,16 @@ export function mergeNavItems(rows: SiteNavItemRow[]): ResolvedNavItem[] {
     .sort((a, b) => a.sort_order - b.sort_order || a.label.localeCompare(b.label));
 
   if (visible.length) {
-    return visible.map((r) => ({ label: r.label, href: r.href }));
+    return visible.map((r) => ({
+      label: r.label,
+      href: r.href,
+      ...(r.href === "/send-flowers" ? { cta: true as const } : {}),
+    }));
   }
 
-  return nav.map((item) => ({ label: item.label, href: item.href }));
+  return nav.map((item) => ({
+    label: item.label,
+    href: item.href,
+    ...("cta" in item && item.cta ? { cta: true } : {}),
+  }));
 }

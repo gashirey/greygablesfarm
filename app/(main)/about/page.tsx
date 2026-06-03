@@ -31,6 +31,18 @@ export default async function AboutPage() {
           <h1 className="type-page-title leading-tight md:text-4xl">
             About
           </h1>
+          <p className="type-page-body mt-6 leading-relaxed">
+            Grey Gables delivers custom arrangements across Central Virginia —
+            grown on the farm, designed by hand, delivered same-day. If you&apos;re
+            looking to send flowers to someone local,{" "}
+            <Link
+              href="/send-flowers"
+              className="text-bark underline underline-offset-4 decoration-parchment hover:text-salmon-dark"
+            >
+              start here
+            </Link>
+            .
+          </p>
           <div className="mt-6 space-y-4">
             {homeAbout.map((paragraph) => (
               <p key={paragraph.slice(0, 24)} className="type-page-body leading-relaxed">
