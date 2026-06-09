@@ -1,10 +1,15 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { Suspense } from "react";
 import { Section } from "@/components/Section";
 import { ContactForm } from "@/components/ContactForm";
 import { LocationBlock } from "@/components/LocationBlock";
-import { site, social } from "@/lib/content";
+import { site } from "@/lib/content";
+import { focalObjectPosition } from "@/lib/site-cms/focal";
+import { getSiteMediaSlots } from "@/lib/site-media/queries";
 import { pageMetadata } from "@/lib/metadata";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = pageMetadata({
   title: "Contact",
@@ -12,55 +17,40 @@ export const metadata: Metadata = pageMetadata({
   path: "/contact",
 });
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  const siteMedia = await getSiteMediaSlots();
+  const contact = siteMedia.contact;
+
   return (
     <Section density="compact" className="pt-20 md:pt-28">
-      <div className="grid gap-14 lg:grid-cols-2 lg:gap-16">
-        <div className="max-w-md">
-          <h1 className="type-page-title leading-tight">
-            Contact
-          </h1>
-          <p className="type-page-body mt-6 leading-relaxed">
-            Weekly availability and orders. Reply within a few business days.
-          </p>
-          <dl className="mt-8 space-y-4 text-sm">
-            <div>
-              <dt className="font-medium text-bark">Email</dt>
-              <dd>
-                <a
-                  href={`mailto:${site.email}`}
-                  className="text-salmon-dark underline underline-offset-2"
-                >
-                  {site.email}
-                </a>
-              </dd>
-            </div>
-            {social.instagram ? (
-              <div>
-                <dt className="font-medium text-bark">Instagram</dt>
-                <dd>
-                  <a
-                    href={social.instagram}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-salmon-dark underline underline-offset-2"
-                  >
-                    Follow
-                  </a>
-                </dd>
-              </div>
-            ) : null}
-          </dl>
+      <div className="grid gap-10 lg:grid-cols-2 lg:items-start lg:gap-16">
+        <div className="relative aspect-[4/5] min-h-[320px] w-full bg-parchment lg:aspect-[3/4]">
+          <Image
+            src={contact.imageUrl}
+            alt={contact.alt}
+            fill
+            priority
+            className="object-cover"
+            style={{
+              objectPosition: focalObjectPosition(contact.focalX, contact.focalY),
+            }}
+            sizes="(max-width: 1024px) 100vw, 50vw"
+            unoptimized={contact.imageUrl.startsWith("http")}
+          />
         </div>
 
-        <Suspense
-          fallback={<div className="card h-96 bg-parchment" aria-hidden />}
-        >
-          <ContactForm />
-        </Suspense>
+        <div className="max-w-md">
+          <h1 className="type-page-title leading-tight">Contact</h1>
+          <Suspense
+            fallback={<div className="card mt-8 h-96 bg-parchment" aria-hidden />}
+          >
+            <div className="mt-8">
+              <ContactForm />
+            </div>
+          </Suspense>
+          <LocationBlock className="mt-12 border-t border-parchment pt-12" />
+        </div>
       </div>
-
-      <LocationBlock className="mt-16 max-w-md border-t border-parchment pt-12" />
     </Section>
   );
 }

@@ -25,6 +25,7 @@ const SLOT_ASPECT: Partial<Record<SiteMediaSlotKey, string>> = {
   hero: "aspect-[16/10]",
   home_feature: "aspect-[16/10] sm:aspect-[5/4]",
   about: "aspect-[4/5]",
+  contact: "aspect-[4/5]",
 };
 
 function isRemoteSrc(url: string): boolean {

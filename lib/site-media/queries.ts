@@ -25,6 +25,10 @@ const FALLBACKS: Record<
     image_url: "/images/garden_row.jpg",
     alt_text: "Cutting garden at Grey Gables Farm",
   },
+  contact: {
+    image_url: "/images/bb.jpg",
+    alt_text: "Seasonal flowers from Grey Gables Farm",
+  },
 };
 
 export async function getSiteMediaSlots(): Promise<

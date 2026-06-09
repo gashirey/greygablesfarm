@@ -70,6 +70,7 @@ export async function PATCH(request: Request) {
 
   revalidatePath("/");
   revalidatePath("/about");
+  revalidatePath("/contact");
 
   return NextResponse.json({ slot: data });
 }

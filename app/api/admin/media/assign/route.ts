@@ -11,6 +11,7 @@ import {
 function revalidatePublicPages() {
   revalidatePath("/");
   revalidatePath("/about");
+  revalidatePath("/contact");
   revalidatePath("/available-now");
 }
 

@@ -52,6 +52,7 @@ export async function POST(request: Request) {
 
   revalidatePath("/");
   revalidatePath("/about");
+  revalidatePath("/contact");
 
   return NextResponse.json({
     path: uploaded.path,
