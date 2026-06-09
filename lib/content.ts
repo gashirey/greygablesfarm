@@ -83,6 +83,11 @@ export const announcement = {
   message: "Weekly listings updated from the field.",
 } as const;
 
+/** Public “See what's growing” page at /available-now */
+export const availabilityPage = {
+  enabled: true,
+} as const;
+
 export const subscribe = {
   heading: "Weekly list",
   description: "Email or text when availability is posted.",

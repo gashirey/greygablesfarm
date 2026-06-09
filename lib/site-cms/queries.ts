@@ -80,14 +80,18 @@ export async function getPublicSiteConfig(): Promise<PublicSiteConfig> {
   const settings = await getSiteSettingsRow();
   const navRows = await getSiteNavItemsRaw();
 
+  const copy = mergeSiteCopy(settings.content_overrides);
+
   return {
     theme: {
       directionId: settings.direction_id,
       heroLayout: settings.hero_layout,
       heroFrame: settings.hero_frame,
     },
-    copy: mergeSiteCopy(settings.content_overrides),
-    nav: mergeNavItems(navRows),
+    copy,
+    nav: mergeNavItems(navRows, {
+      availabilityPageEnabled: copy.availabilityPage.enabled,
+    }),
   };
 }
 

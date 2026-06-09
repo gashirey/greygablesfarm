@@ -7,6 +7,7 @@ import { getAvailableNow, isInventoryConfigured } from "@/lib/inventory/queries"
 import { site } from "@/lib/content";
 import { getRootedFarmersHref } from "@/lib/links";
 import { pageMetadata } from "@/lib/metadata";
+import { assertAvailabilityPageEnabled } from "@/lib/site-cms/availability-page";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,8 @@ export const metadata: Metadata = pageMetadata({
 });
 
 export default async function AvailableNowPage() {
+  await assertAvailabilityPageEnabled();
+
   const configured = isInventoryConfigured();
   const { date, items } = configured
     ? await getAvailableNow()

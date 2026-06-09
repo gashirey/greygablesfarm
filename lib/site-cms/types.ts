@@ -46,6 +46,9 @@ export type SiteContentOverrides = {
     enabled?: boolean;
     message?: string;
   };
+  availabilityPage?: {
+    enabled?: boolean;
+  };
 };
 
 export type TypographySectionId =
@@ -134,6 +137,9 @@ export type ResolvedSiteCopy = {
   announcement: {
     enabled: boolean;
     message: string;
+  };
+  availabilityPage: {
+    enabled: boolean;
   };
 };
 

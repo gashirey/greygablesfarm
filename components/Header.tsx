@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { site } from "@/lib/content";
 import { useSiteConfig } from "@/components/SiteConfigProvider";
 
@@ -11,128 +11,174 @@ function isNavActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
-function NavLink({ href, label }: { href: string; label: string }) {
-  const pathname = usePathname();
-  const isActive = isNavActive(pathname, href);
-
-  return (
-    <Link
-      href={href}
-      className={`type-nav tracking-wide transition-colors ${
-        isActive ? "font-medium text-salmon-dark" : "hover:opacity-80"
-      }`}
-    >
-      {label}
-    </Link>
-  );
-}
-
-function NavCta({ href, label }: { href: string; label: string }) {
-  const pathname = usePathname();
-  const isActive = isNavActive(pathname, href);
-
-  return (
-    <Link
-      href={href}
-      className={`btn shrink-0 border-salmon-dark px-3 py-1.5 text-xs tracking-wide md:text-sm ${
-        isActive
-          ? "bg-salmon text-white"
-          : "bg-salmon-dark text-white hover:bg-salmon"
-      }`}
-    >
-      {label}
-    </Link>
-  );
-}
-
 export function Header() {
+  const pathname = usePathname();
   const { nav } = useSiteConfig();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  const isHome = pathname === "/";
+  const isAbout = pathname === "/about";
+  const overlay = isHome || isAbout;
+  const showDesktopBrand = !isHome;
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!overlay) {
+      setScrolled(false);
+      return;
+    }
+
+    const onScroll = () => setScrolled(window.scrollY > 20);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [overlay]);
 
   const ctaItem = nav.find((item) => item.cta || item.href === "/send-flowers");
   const textNav = nav.filter(
     (item) => item !== ctaItem && item.href !== "/send-flowers",
   );
+  const desktopNav = textNav.filter((item) => item.href !== "/");
+  const mobileNav = textNav;
+
+  const barColor = overlay ? "bg-white" : "bg-bark";
+
+  const headerClass = overlay
+    ? `site-header site-header--overlay fixed inset-x-0 top-0 z-50 border-b transition-[background-color,border-color,backdrop-filter] duration-300 ease-out ${
+        scrolled
+          ? "site-header--scrolled border-parchment/50"
+          : "border-transparent"
+      }`
+    : "site-header sticky top-0 z-50 border-b border-parchment bg-cream";
+
+  const brandClass = overlay
+    ? scrolled
+      ? "site-header__brand site-header__brand--scrolled"
+      : "site-header__brand site-header__brand--overlay"
+    : "site-header__brand site-header__brand--solid";
+
+  const navLinkClass = (isActive: boolean, onOverlay: boolean) => {
+    const base = "site-header__nav-link";
+    if (onOverlay) {
+      return `${base} ${scrolled ? "site-header__nav-link--scrolled" : "site-header__nav-link--overlay"} ${
+        isActive ? "site-header__nav-link--active" : ""
+      }`;
+    }
+    return `${base} site-header__nav-link--solid ${
+      isActive ? "site-header__nav-link--active" : ""
+    }`;
+  };
 
   return (
-    <header className="site-header sticky top-0 z-50 border-b border-parchment bg-cream">
-      <div className="mx-auto flex h-11 max-w-6xl items-center justify-between gap-4 px-4 lg:h-12 lg:px-8">
-        <Link
-          href="/"
-          className="flex min-w-0 items-center transition-opacity hover:opacity-85"
-        >
-          <Image
-            src={site.logo}
-            alt={site.logoAlt}
-            width={180}
-            height={44}
-            priority
-            className="h-7 w-auto max-w-[11rem] object-contain object-left lg:h-8 lg:max-w-[13rem]"
-          />
-        </Link>
+    <header className={headerClass}>
+      <div
+        className={`mx-auto flex h-14 w-full max-w-6xl items-center gap-6 px-6 lg:h-16 lg:px-10 xl:px-14 ${
+          overlay && !showDesktopBrand ? "justify-end" : "justify-between"
+        }`}
+      >
+        {showDesktopBrand ? (
+          <Link href="/" className={`${brandClass} hidden lg:block`}>
+            <span className="xl:hidden">Grey Gables</span>
+            <span className="hidden xl:inline">Grey Gables Flower Farm</span>
+          </Link>
+        ) : null}
+        {!overlay ? (
+          <Link
+            href="/"
+            className="flex min-w-0 items-center transition-opacity hover:opacity-85 lg:hidden"
+          >
+            <Image
+              src={site.logo}
+              alt={site.logoAlt}
+              width={180}
+              height={44}
+              priority
+              className="h-7 w-auto max-w-[11rem] object-contain object-left"
+            />
+          </Link>
+        ) : null}
 
         <nav
-          className="hidden items-center gap-4 md:flex md:gap-5"
+          className="hidden items-center gap-8 xl:gap-10 lg:flex"
           aria-label="Main"
         >
-          {ctaItem ? (
-            <NavCta href={ctaItem.href} label={ctaItem.label} />
+          {desktopNav.map((item) => {
+            const isActive = isNavActive(pathname, item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={navLinkClass(isActive, overlay)}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className={`relative shrink-0 lg:hidden ${overlay ? "ml-auto" : ""}`}>
+          <button
+            type="button"
+            className="flex flex-col gap-1 p-1.5"
+            aria-expanded={menuOpen}
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            onClick={() => setMenuOpen(!menuOpen)}
+          >
+            <span
+              className={`block h-px w-5 transition-transform ${barColor} ${menuOpen ? "translate-y-[4px] rotate-45" : ""}`}
+            />
+            <span
+              className={`block h-px w-5 transition-opacity ${barColor} ${menuOpen ? "opacity-0" : ""}`}
+            />
+            <span
+              className={`block h-px w-5 transition-transform ${barColor} ${menuOpen ? "-translate-y-[4px] -rotate-45" : ""}`}
+            />
+          </button>
+
+          {menuOpen ? (
+            <nav
+              className="absolute right-0 top-full z-50 min-w-[11rem] border border-parchment bg-cream px-5 py-4"
+              aria-label="Mobile"
+            >
+              <ul className="flex flex-col items-end gap-3">
+                {ctaItem ? (
+                  <li>
+                    <Link
+                      href={ctaItem.href}
+                      className="btn inline-flex border-salmon-dark bg-salmon-dark text-white"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      {ctaItem.label}
+                    </Link>
+                  </li>
+                ) : null}
+                {mobileNav.map((item) => {
+                  const isActive = isNavActive(pathname, item.href);
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        className={`type-nav block text-right text-lg tracking-wide transition-colors ${
+                          isActive
+                            ? "font-medium text-salmon-dark"
+                            : "hover:opacity-80"
+                        }`}
+                        onClick={() => setMenuOpen(false)}
+                      >
+                        {item.label}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </nav>
           ) : null}
-          {textNav.map((item) => (
-            <NavLink key={item.href} href={item.href} label={item.label} />
-          ))}
-        </nav>
-
-        <button
-          type="button"
-          className="flex shrink-0 flex-col gap-1 p-1.5 md:hidden"
-          aria-expanded={menuOpen}
-          aria-label={menuOpen ? "Close menu" : "Open menu"}
-          onClick={() => setMenuOpen(!menuOpen)}
-        >
-          <span
-            className={`block h-px w-5 bg-bark transition-transform ${menuOpen ? "translate-y-[4px] rotate-45" : ""}`}
-          />
-          <span
-            className={`block h-px w-5 bg-bark transition-opacity ${menuOpen ? "opacity-0" : ""}`}
-          />
-          <span
-            className={`block h-px w-5 bg-bark transition-transform ${menuOpen ? "-translate-y-[4px] -rotate-45" : ""}`}
-          />
-        </button>
+        </div>
       </div>
-
-      {menuOpen && (
-        <nav
-          className="border-t border-parchment bg-cream px-4 py-4 md:hidden"
-          aria-label="Mobile"
-        >
-          <ul className="flex flex-col gap-3">
-            {ctaItem ? (
-              <li>
-                <Link
-                  href={ctaItem.href}
-                  className="btn inline-flex w-full justify-center border-salmon-dark bg-salmon-dark text-white"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  {ctaItem.label}
-                </Link>
-              </li>
-            ) : null}
-            {textNav.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className="type-nav block text-lg"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  {item.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      )}
     </header>
   );
 }

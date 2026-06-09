@@ -1,5 +1,6 @@
 import {
   announcement,
+  availabilityPage,
   heroHome,
   homeAbout,
   homeCta,
@@ -17,6 +18,9 @@ import type {
 export function mergeSiteCopy(
   overrides: SiteContentOverrides = {},
 ): ResolvedSiteCopy {
+  const availabilityEnabled =
+    overrides.availabilityPage?.enabled ?? availabilityPage.enabled;
+
   return {
     site: {
       tagline: overrides.site?.tagline ?? site.tagline,
@@ -30,8 +34,8 @@ export function mergeSiteCopy(
           overrides.heroHome?.primaryCtaLabel ?? heroHome.primaryCta.label,
         href: overrides.heroHome?.primaryCtaHref ?? heroHome.primaryCta.href,
       },
-      secondaryCta:
-        overrides.heroHome?.secondaryCtaLabel || overrides.heroHome?.secondaryCtaHref
+      secondaryCta: availabilityEnabled
+        ? overrides.heroHome?.secondaryCtaLabel || overrides.heroHome?.secondaryCtaHref
           ? {
               label:
                 overrides.heroHome?.secondaryCtaLabel ??
@@ -42,7 +46,8 @@ export function mergeSiteCopy(
                 heroHome.secondaryCta?.href ??
                 "",
             }
-          : heroHome.secondaryCta,
+          : heroHome.secondaryCta
+        : undefined,
     },
     homeAbout: overrides.homeAbout?.length
       ? overrides.homeAbout
@@ -66,12 +71,21 @@ export function mergeSiteCopy(
       enabled: overrides.announcement?.enabled ?? announcement.enabled,
       message: overrides.announcement?.message ?? announcement.message,
     },
+    availabilityPage: {
+      enabled: availabilityEnabled,
+    },
   };
 }
 
-export function mergeNavItems(rows: SiteNavItemRow[]): ResolvedNavItem[] {
+export function mergeNavItems(
+  rows: SiteNavItemRow[],
+  options?: { availabilityPageEnabled?: boolean },
+): ResolvedNavItem[] {
+  const availabilityPageEnabled = options?.availabilityPageEnabled ?? true;
+
   const visible = rows
     .filter((r) => r.is_visible)
+    .filter((r) => availabilityPageEnabled || r.href !== "/available-now")
     .sort((a, b) => a.sort_order - b.sort_order || a.label.localeCompare(b.label));
 
   if (visible.length) {
@@ -82,9 +96,11 @@ export function mergeNavItems(rows: SiteNavItemRow[]): ResolvedNavItem[] {
     }));
   }
 
-  return nav.map((item) => ({
-    label: item.label,
-    href: item.href,
-    ...("cta" in item && item.cta ? { cta: true } : {}),
-  }));
+  return nav
+    .filter((item) => availabilityPageEnabled || item.href !== "/available-now")
+    .map((item) => ({
+      label: item.label,
+      href: item.href,
+      ...("cta" in item && item.cta ? { cta: true } : {}),
+    }));
 }

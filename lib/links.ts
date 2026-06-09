@@ -6,6 +6,11 @@ export const links = {
   shopify: "" as string,
 } as const;
 
-export function getRootedFarmersHref(): string {
-  return links.rootedFarmers || "/available-now";
+export function getRootedFarmersHref(options?: {
+  availabilityPageEnabled?: boolean;
+}): string {
+  if (links.rootedFarmers) return links.rootedFarmers;
+  return options?.availabilityPageEnabled === false
+    ? "/contact"
+    : "/available-now";
 }

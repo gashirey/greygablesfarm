@@ -182,6 +182,75 @@
   border-color: var(--site-border);
 }
 
+.site-theme .site-header--overlay:not(.site-header--scrolled) {
+  background-color: transparent;
+  border-color: transparent;
+}
+
+.site-theme .site-header--overlay.site-header--scrolled {
+  background-color: rgb(255 255 255 / 0.92);
+  backdrop-filter: blur(10px);
+  border-color: var(--site-border);
+}
+
+.site-header__brand {
+  font-family: var(--font-fraunces), var(--font-cormorant), Georgia, serif;
+  font-size: 1.125rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  transition: color 0.3s ease, opacity 0.2s ease;
+}
+
+@media (min-width: 1280px) {
+  .site-header__brand {
+    font-size: 1.25rem;
+  }
+}
+
+.site-header__brand--overlay {
+  color: #fff;
+}
+
+.site-header__brand--overlay:hover {
+  opacity: 0.85;
+}
+
+.site-header__brand--scrolled,
+.site-header__brand--solid {
+  color: #4a4a4a;
+}
+
+.site-header__brand--solid:hover {
+  opacity: 0.75;
+}
+
+.site-header__nav-link {
+  font-family: var(--type-nav-font, var(--font-karla), system-ui, sans-serif);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  transition: opacity 0.2s ease, color 0.3s ease;
+}
+
+.site-header__nav-link--overlay {
+  color: #fff;
+}
+
+.site-header__nav-link--scrolled,
+.site-header__nav-link--solid {
+  color: #4a4a4a;
+}
+
+.site-header__nav-link:hover {
+  opacity: 0.65;
+}
+
+.site-header__nav-link--active {
+  opacity: 0.85;
+}
+
 .site-theme .hero-scrim {
   background: var(--site-scrim);
 }

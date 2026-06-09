@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { Section } from "@/components/Section";
 import { site } from "@/lib/content";
 import { focalObjectPosition } from "@/lib/site-cms/focal";
 import { getPublicSiteConfig } from "@/lib/site-cms/queries";
@@ -25,62 +24,59 @@ export default async function AboutPage() {
   const homeAbout = config.copy.homeAbout;
 
   return (
-    <Section density="compact" className="pt-20 md:pt-28">
-      <div className="grid gap-10 lg:grid-cols-[minmax(0,22rem)_1fr] lg:gap-16 lg:items-start">
-        <div>
-          <h1 className="type-page-title leading-tight md:text-4xl">
+    <section className="relative min-h-[100svh] bg-site-page">
+      <div className="absolute inset-0">
+        <Image
+          src={about.imageUrl}
+          alt={about.alt}
+          fill
+          priority
+          className="object-cover"
+          style={{
+            objectPosition: focalObjectPosition(about.focalX, about.focalY),
+          }}
+          sizes="100vw"
+          unoptimized={about.imageUrl.startsWith("http")}
+        />
+        <div className="hero-scrim" aria-hidden />
+      </div>
+
+      <div className="relative z-10 mx-auto flex min-h-[100svh] max-w-6xl flex-col px-6 pb-16 pt-28 lg:px-10 lg:pt-36">
+        <div className="max-w-sm lg:max-w-md">
+          <h1 className="type-hero-title text-3xl leading-tight md:text-4xl">
             About
           </h1>
-          <p className="type-page-body mt-6 leading-relaxed">
-            Grey Gables delivers custom arrangements across Central Virginia —
-            grown on the farm, designed by hand, delivered same-day. If you&apos;re
-            looking to send flowers to someone local,{" "}
-            <Link
-              href="/send-flowers"
-              className="text-bark underline underline-offset-4 decoration-parchment hover:text-salmon-dark"
-            >
-              start here
-            </Link>
-            .
-          </p>
           <div className="mt-6 space-y-4">
             {homeAbout.map((paragraph) => (
-              <p key={paragraph.slice(0, 24)} className="type-page-body leading-relaxed">
+              <p
+                key={paragraph.slice(0, 24)}
+                className="type-hero-subtitle leading-relaxed"
+              >
                 {paragraph}
               </p>
             ))}
           </div>
-          <p className="mt-6 text-sm text-stone">
+          <p className="mt-6 text-sm text-white/80">
             <Link
               href="/contact"
-              className="text-bark underline underline-offset-4 decoration-parchment hover:text-salmon-dark"
+              className="text-white underline underline-offset-4 decoration-white/40 transition-colors hover:decoration-white"
             >
               Contact the farm
             </Link>
-            {" · "}
-            <Link
-              href="/available-now"
-              className="text-bark underline underline-offset-4 decoration-parchment hover:text-salmon-dark"
-            >
-              Current availability
-            </Link>
+            {config.copy.availabilityPage.enabled ? (
+              <>
+                {" · "}
+                <Link
+                  href="/available-now"
+                  className="text-white underline underline-offset-4 decoration-white/40 transition-colors hover:decoration-white"
+                >
+                  Current availability
+                </Link>
+              </>
+            ) : null}
           </p>
         </div>
-        <div className="relative aspect-[4/5] min-h-[320px] w-full bg-parchment lg:aspect-[3/4]">
-          <Image
-            src={about.imageUrl}
-            alt={about.alt}
-            fill
-            className="object-cover"
-            style={{
-              objectPosition: focalObjectPosition(about.focalX, about.focalY),
-            }}
-            sizes="(max-width: 1024px) 100vw, 55vw"
-            priority
-            unoptimized={about.imageUrl.startsWith("http")}
-          />
-        </div>
       </div>
-    </Section>
+    </section>
   );
 }

@@ -21,6 +21,7 @@ export function SiteContentPanel() {
     ctaContact: "",
     announcementEnabled: false,
     announcementMessage: "",
+    availabilityPageEnabled: true,
   });
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{
@@ -46,6 +47,7 @@ export function SiteContentPanel() {
       ctaContact: merged.homeCta.contact,
       announcementEnabled: merged.announcement.enabled,
       announcementMessage: merged.announcement.message,
+      availabilityPageEnabled: merged.availabilityPage.enabled,
     });
   }, []);
 
@@ -98,6 +100,9 @@ export function SiteContentPanel() {
         enabled: draft.announcementEnabled,
         message: draft.announcementMessage.trim() || undefined,
       },
+      availabilityPage: {
+        enabled: draft.availabilityPageEnabled,
+      },
     };
 
     const res = await fetch("/api/admin/site-cms", {
@@ -126,6 +131,24 @@ export function SiteContentPanel() {
       {notice && (
         <AdminNotice type={notice.type} message={notice.message} onDismiss={() => setNotice(null)} />
       )}
+
+      <section className="border border-parchment bg-white p-5">
+        <h2 className="font-serif text-lg text-bark">See what&apos;s growing</h2>
+        <p className="mt-2 max-w-xl text-sm text-stone">
+          Controls the hero button, navigation link, and{" "}
+          <span className="font-mono text-xs">/available-now</span> page.
+        </p>
+        <label className="mt-4 flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={draft.availabilityPageEnabled}
+            onChange={(e) =>
+              setDraft({ ...draft, availabilityPageEnabled: e.target.checked })
+            }
+          />
+          Show &ldquo;See what&apos;s growing&rdquo; page and links
+        </label>
+      </section>
 
       <section className="border border-parchment bg-white p-5">
         <h2 className="font-serif text-lg text-bark">Announcement bar</h2>
