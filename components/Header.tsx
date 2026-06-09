@@ -42,7 +42,7 @@ export function Header() {
   const textNav = nav.filter(
     (item) => item !== ctaItem && item.href !== "/send-flowers",
   );
-  const desktopNav = textNav.filter((item) => item.href !== "/");
+  const desktopNav = textNav;
   const mobileNav = textNav;
 
   const barColor = overlay ? "bg-white" : "bg-bark";
