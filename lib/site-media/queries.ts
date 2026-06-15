@@ -3,11 +3,28 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { clampFocal } from "@/lib/site-cms/focal";
 import { site } from "@/lib/content";
 import {
+  DEFAULT_SLOT_DISPLAY_RATIOS,
+  resolveDisplayRatio,
+} from "./display-ratio";
+import {
   SITE_MEDIA_SLOTS,
   type SiteMediaSlot,
   type SiteMediaSlotKey,
   type SiteMediaView,
 } from "./slots";
+
+function toMediaView(
+  key: SiteMediaSlotKey,
+  row?: Partial<SiteMediaSlot>,
+): SiteMediaView {
+  return {
+    imageUrl: row?.image_url ?? FALLBACKS[key].image_url,
+    alt: row?.alt_text ?? FALLBACKS[key].alt_text,
+    focalX: clampFocal(row?.focal_x),
+    focalY: clampFocal(row?.focal_y),
+    displayRatio: resolveDisplayRatio(row?.display_ratio, key),
+  };
+}
 
 const FALLBACKS: Record<
   SiteMediaSlotKey,
@@ -37,12 +54,7 @@ export async function getSiteMediaSlots(): Promise<
   const out = {} as Record<SiteMediaSlotKey, SiteMediaView>;
 
   for (const key of SITE_MEDIA_SLOTS) {
-    out[key] = {
-      imageUrl: FALLBACKS[key].image_url,
-      alt: FALLBACKS[key].alt_text,
-      focalX: 50,
-      focalY: 50,
-    };
+    out[key] = toMediaView(key);
   }
 
   if (!isSupabaseConfigured()) return out;
@@ -50,7 +62,7 @@ export async function getSiteMediaSlots(): Promise<
   const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("site_media_slots")
-    .select("slot_key, image_url, alt_text");
+    .select("slot_key, image_url, alt_text, focal_x, focal_y, display_ratio");
 
   if (error) {
     console.error("[getSiteMediaSlots]", error);
@@ -61,12 +73,7 @@ export async function getSiteMediaSlots(): Promise<
     const key = row.slot_key as SiteMediaSlotKey;
     if (!SITE_MEDIA_SLOTS.includes(key)) continue;
     if (!row.image_url) continue;
-    out[key] = {
-      imageUrl: row.image_url,
-      alt: row.alt_text ?? FALLBACKS[key].alt_text,
-      focalX: clampFocal(row.focal_x),
-      focalY: clampFocal(row.focal_y),
-    };
+    out[key] = toMediaView(key, row);
   }
 
   return out;
@@ -80,6 +87,7 @@ export async function getSiteMediaSlotsRaw(): Promise<SiteMediaSlot[]> {
       alt_text: FALLBACKS[slot_key].alt_text,
       focal_x: 50,
       focal_y: 50,
+      display_ratio: DEFAULT_SLOT_DISPLAY_RATIOS[slot_key],
       updated_at: new Date().toISOString(),
     }));
   }
@@ -98,6 +106,7 @@ export async function getSiteMediaSlotsRaw(): Promise<SiteMediaSlot[]> {
       alt_text: FALLBACKS[slot_key].alt_text,
       focal_x: 50,
       focal_y: 50,
+      display_ratio: DEFAULT_SLOT_DISPLAY_RATIOS[slot_key],
       updated_at: new Date().toISOString(),
     }));
   }
@@ -115,6 +124,7 @@ export async function getSiteMediaSlotsRaw(): Promise<SiteMediaSlot[]> {
         alt_text: FALLBACKS[slot_key].alt_text,
         focal_x: 50,
         focal_y: 50,
+        display_ratio: DEFAULT_SLOT_DISPLAY_RATIOS[slot_key],
         updated_at: new Date().toISOString(),
       }
     );

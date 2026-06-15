@@ -1,3 +1,5 @@
+import type { MediaDisplayRatio } from "./display-ratio";
+
 /** Keys for marketing images on the public site */
 export const SITE_MEDIA_SLOTS = ["hero", "home_feature", "about", "contact"] as const;
 
@@ -16,6 +18,7 @@ export type SiteMediaSlot = {
   alt_text: string | null;
   focal_x?: number;
   focal_y?: number;
+  display_ratio?: string | null;
   updated_at: string;
 };
 
@@ -24,4 +27,5 @@ export type SiteMediaView = {
   alt: string;
   focalX: number;
   focalY: number;
+  displayRatio: MediaDisplayRatio;
 };

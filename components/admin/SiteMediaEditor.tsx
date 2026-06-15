@@ -1,11 +1,17 @@
 "use client";
 
-import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { FocalPointControl } from "@/components/admin/FocalPointControl";
 import { compressImageBeforeUpload } from "@/lib/admin/client-compress-image";
 import { readAdminUploadError } from "@/lib/admin/upload-response";
 import { clampFocal } from "@/lib/site-cms/focal";
+import {
+  aspectClassForRatio,
+  MEDIA_DISPLAY_RATIO_LABELS,
+  MEDIA_DISPLAY_RATIOS,
+  resolveDisplayRatio,
+  type MediaDisplayRatio,
+} from "@/lib/site-media/display-ratio";
 import {
   SITE_MEDIA_SLOT_LABELS,
   SITE_MEDIA_SLOTS,
@@ -21,17 +27,6 @@ type HeroSlideRow = {
   focal_y?: number;
 };
 
-const SLOT_ASPECT: Partial<Record<SiteMediaSlotKey, string>> = {
-  hero: "aspect-[16/10]",
-  home_feature: "aspect-[16/10] sm:aspect-[5/4]",
-  about: "aspect-[4/5]",
-  contact: "aspect-[4/5]",
-};
-
-function isRemoteSrc(url: string): boolean {
-  return url.startsWith("http://") || url.startsWith("https://");
-}
-
 export function SiteMediaEditor() {
   const [slots, setSlots] = useState<SiteMediaSlot[]>([]);
   const [heroSlides, setHeroSlides] = useState<HeroSlideRow[]>([]);
@@ -40,6 +35,7 @@ export function SiteMediaEditor() {
   >({});
   const [uploading, setUploading] = useState<SiteMediaSlotKey | null>(null);
   const [savingFocal, setSavingFocal] = useState<string | null>(null);
+  const [savingRatio, setSavingRatio] = useState<SiteMediaSlotKey | null>(null);
   const [message, setMessage] = useState("");
 
   const load = useCallback(async () => {
@@ -127,6 +123,31 @@ export function SiteMediaEditor() {
     await load();
   }
 
+  async function saveDisplayRatio(
+    slotKey: SiteMediaSlotKey,
+    display_ratio: MediaDisplayRatio,
+  ) {
+    const slot = slots.find((s) => s.slot_key === slotKey);
+    if (!slot) return;
+
+    setSavingRatio(slotKey);
+    const res = await fetch("/api/admin/site-media", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        slot_key: slotKey,
+        display_ratio,
+      }),
+    });
+    setSavingRatio(null);
+    if (!res.ok) {
+      setMessage("Could not save display ratio.");
+      return;
+    }
+    setMessage(`Saved display ratio for ${SITE_MEDIA_SLOT_LABELS[slotKey]}.`);
+    await load();
+  }
+
   async function saveSlotFocal(slotKey: SiteMediaSlotKey) {
     const slot = slots.find((s) => s.slot_key === slotKey);
     const focal = focalDraft[slotKey];
@@ -178,8 +199,8 @@ export function SiteMediaEditor() {
       {message && <p className="text-sm text-bark">{message}</p>}
 
       <p className="text-sm text-stone max-w-xl">
-        Upload replacements here, then adjust framing so crops look right in each
-        layout. Hero slideshow images are assigned from the{" "}
+        Upload replacements here, choose how each image is cropped on the site,
+        then adjust framing. Hero slideshow images are assigned from the{" "}
         <a href="/admin/media" className="underline hover:text-bark">
           media library
         </a>
@@ -191,6 +212,9 @@ export function SiteMediaEditor() {
         const imageUrl = slot?.image_url ?? "";
         const alt = slot?.alt_text ?? "";
         const focal = focalDraft[slotKey] ?? { x: 50, y: 50 };
+        const displayRatio = resolveDisplayRatio(slot?.display_ratio, slotKey);
+        const aspectClass =
+          aspectClassForRatio(displayRatio) ?? "aspect-[16/10]";
 
         return (
           <section
@@ -232,13 +256,49 @@ export function SiteMediaEditor() {
               />
             </label>
 
-            {imageUrl ? (
+            <label className="mt-4 block text-sm">
+              Display ratio
+              <select
+                className="input mt-1 w-full max-w-lg"
+                value={displayRatio}
+                disabled={savingRatio === slotKey}
+                onChange={(e) => {
+                  void saveDisplayRatio(
+                    slotKey,
+                    e.target.value as MediaDisplayRatio,
+                  );
+                }}
+              >
+                {MEDIA_DISPLAY_RATIOS.map((ratio) => (
+                  <option key={ratio} value={ratio}>
+                    {MEDIA_DISPLAY_RATIO_LABELS[ratio]}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {imageUrl && displayRatio === "natural" ? (
+              <div className="mt-4 max-w-lg">
+                <p className="text-xs font-medium text-bark">Preview</p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={imageUrl}
+                  alt={alt}
+                  className="mt-2 block h-auto w-full border border-parchment"
+                />
+                <p className="mt-2 text-xs text-stone">
+                  Full image height at page width — focal point is not used.
+                </p>
+              </div>
+            ) : null}
+
+            {imageUrl && displayRatio !== "natural" ? (
               <FocalPointControl
                 imageUrl={imageUrl}
                 alt={alt}
                 focalX={focal.x}
                 focalY={focal.y}
-                aspectClass={SLOT_ASPECT[slotKey] ?? "aspect-[16/10]"}
+                aspectClass={aspectClass}
                 saving={savingFocal === slotKey}
                 onChange={(x, y) =>
                   setFocalDraft((prev) => ({

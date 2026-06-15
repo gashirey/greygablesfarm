@@ -49,6 +49,15 @@ export default function AdminDashboardPage() {
           </p>
         </Link>
         <Link
+          href="/admin/campaigns"
+          className="border border-parchment bg-white p-5 hover:border-bark/30"
+        >
+          <p className="font-medium text-bark">Campaigns &amp; QR</p>
+          <p className="mt-1 text-sm text-stone">
+            Short links, scan counts, and visit logs for attributed traffic.
+          </p>
+        </Link>
+        <Link
           href="/admin/products"
           className="border border-parchment bg-white p-5 hover:border-bark/30"
         >

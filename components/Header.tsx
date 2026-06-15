@@ -18,8 +18,7 @@ export function Header() {
   const [scrolled, setScrolled] = useState(false);
 
   const isHome = pathname === "/";
-  const isAbout = pathname === "/about";
-  const overlay = isHome || isAbout;
+  const overlay = isHome || pathname === "/about";
   const showDesktopBrand = !isHome;
 
   useEffect(() => {

@@ -15,7 +15,11 @@ const subjectLabels: Record<string, string> = {
 
 type FormStatus = "idle" | "loading" | "success" | "error";
 
-export function ContactForm() {
+type ContactFormProps = {
+  variant?: "default" | "light";
+};
+
+export function ContactForm({ variant = "default" }: ContactFormProps) {
   const searchParams = useSearchParams();
   const rawSubject = searchParams.get("subject") ?? "general";
   const subjectKey = rawSubject === "wedding" ? "event" : rawSubject;
@@ -84,18 +88,31 @@ export function ContactForm() {
   }
 
   const disabled = status === "loading" || status === "success";
+  const light = variant === "light";
+  const labelClass = light
+    ? "block text-sm font-medium text-white"
+    : "block text-sm font-medium text-bark";
+  const optionalClass = light ? "font-normal text-white/70" : "font-normal text-stone";
+  const inputClass = light
+    ? "mt-1 w-full rounded-sm border border-white/25 bg-white/85 px-4 py-2.5 text-bark outline-none focus:border-salmon focus:ring-1 focus:ring-salmon"
+    : "input mt-1";
+  const statusClass =
+    status === "error"
+      ? light
+        ? "text-white"
+        : "text-bark"
+      : light
+        ? "text-white/85"
+        : "text-stone";
 
   return (
-    <form onSubmit={handleSubmit} className="card p-6 md:p-8">
-      <p className="mb-6 text-sm text-stone">
-        {supabaseReady
-          ? "We reply within a few business days."
-          : "Opens your email app with your message pre-filled."}
-      </p>
-
-      <div className="space-y-5">
+    <form
+      onSubmit={handleSubmit}
+      className={light ? "" : "card p-5"}
+    >
+      <div className="space-y-4">
         <div>
-          <label htmlFor="name" className="block text-sm font-medium text-bark">
+          <label htmlFor="name" className={labelClass}>
             Name
           </label>
           <input
@@ -105,11 +122,11 @@ export function ContactForm() {
             required
             autoComplete="name"
             disabled={disabled}
-            className="input mt-1"
+            className={inputClass}
           />
         </div>
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-bark">
+          <label htmlFor="email" className={labelClass}>
             Email
           </label>
           <input
@@ -119,12 +136,12 @@ export function ContactForm() {
             required
             autoComplete="email"
             disabled={disabled}
-            className="input mt-1"
+            className={inputClass}
           />
         </div>
         <div>
-          <label htmlFor="phone" className="block text-sm font-medium text-bark">
-            Phone <span className="font-normal text-stone">(optional)</span>
+          <label htmlFor="phone" className={labelClass}>
+            Phone <span className={optionalClass}>(optional)</span>
           </label>
           <input
             id="phone"
@@ -132,11 +149,11 @@ export function ContactForm() {
             type="tel"
             autoComplete="tel"
             disabled={disabled}
-            className="input mt-1"
+            className={inputClass}
           />
         </div>
         <div>
-          <label htmlFor="subject" className="block text-sm font-medium text-bark">
+          <label htmlFor="subject" className={labelClass}>
             Subject
           </label>
           <select
@@ -144,7 +161,7 @@ export function ContactForm() {
             name="subject"
             defaultValue={subjectKey}
             disabled={disabled}
-            className="input mt-1"
+            className={inputClass}
           >
             <option value="flowers">Flower inquiry</option>
             <option value="event">Event</option>
@@ -152,17 +169,17 @@ export function ContactForm() {
           </select>
         </div>
         <div>
-          <label htmlFor="message" className="block text-sm font-medium text-bark">
+          <label htmlFor="message" className={labelClass}>
             Message
           </label>
           <textarea
             id="message"
             name="message"
-            rows={5}
+            rows={4}
             required
             disabled={disabled}
             placeholder={`Tell us about your ${defaultSubject.toLowerCase()}...`}
-            className="input mt-1 resize-y"
+            className={`${inputClass} resize-y`}
           />
         </div>
 
@@ -185,7 +202,7 @@ export function ContactForm() {
 
         {message ? (
           <p
-            className={`text-sm ${status === "error" ? "text-bark" : "text-stone"}`}
+            className={`text-sm ${statusClass}`}
             role={status === "error" ? "alert" : "status"}
           >
             {message}

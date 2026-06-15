@@ -2,6 +2,7 @@ import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/require";
 import { createServiceClient } from "@/lib/supabase/server";
+import { isMediaDisplayRatio } from "@/lib/site-media/display-ratio";
 import { getSiteMediaSlotsRaw } from "@/lib/site-media/queries";
 import {
   SITE_MEDIA_SLOTS,
@@ -26,6 +27,7 @@ export async function PATCH(request: Request) {
     alt_text?: string | null;
     focal_x?: number;
     focal_y?: number;
+    display_ratio?: string;
   };
 
   const slotKey = body.slot_key as SiteMediaSlotKey | undefined;
@@ -57,6 +59,12 @@ export async function PATCH(request: Request) {
   if (body.alt_text !== undefined) patch.alt_text = body.alt_text?.trim() || null;
   if (body.focal_x != null) patch.focal_x = body.focal_x;
   if (body.focal_y != null) patch.focal_y = body.focal_y;
+  if (body.display_ratio !== undefined) {
+    if (!isMediaDisplayRatio(body.display_ratio)) {
+      return NextResponse.json({ error: "Invalid display_ratio." }, { status: 400 });
+    }
+    patch.display_ratio = body.display_ratio;
+  }
   const { data, error } = await supabase
     .from("site_media_slots")
     .upsert(patch)
