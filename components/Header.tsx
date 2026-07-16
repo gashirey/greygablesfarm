@@ -1,11 +1,13 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-import { site } from "@/lib/content";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useSiteConfig } from "@/components/SiteConfigProvider";
+import {
+  FOUND_BRAND_COLOR,
+  isFoundCampaignPath,
+} from "@/lib/found/content";
 
 function isNavActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -60,6 +62,10 @@ export function Header() {
       : "site-header__brand site-header__brand--overlay"
     : "site-header__brand site-header__brand--solid";
 
+  const brandStyle: CSSProperties | undefined = isFoundCampaignPath(pathname)
+    ? { color: FOUND_BRAND_COLOR }
+    : undefined;
+
   const navLinkClass = (isActive: boolean, onOverlay: boolean) => {
     const base = "site-header__nav-link";
     if (onOverlay) {
@@ -80,24 +86,21 @@ export function Header() {
         }`}
       >
         {showDesktopBrand ? (
-          <Link href="/" className={`${brandClass} hidden lg:block`}>
-            <span className="xl:hidden">Grey Gables</span>
-            <span className="hidden xl:inline">Grey Gables Flower Farm</span>
+          <Link
+            href="/"
+            className={`${brandClass} hidden lg:block`}
+            style={brandStyle}
+          >
+            Grey Gables Flower Farm
           </Link>
         ) : null}
         {!overlay ? (
           <Link
             href="/"
-            className="flex min-w-0 items-center transition-opacity hover:opacity-85 lg:hidden"
+            className={`${brandClass} min-w-0 flex-1 truncate text-[0.95rem] leading-tight lg:hidden`}
+            style={brandStyle}
           >
-            <Image
-              src={site.logo}
-              alt={site.logoAlt}
-              width={180}
-              height={44}
-              priority
-              className="h-7 w-auto max-w-[11rem] object-contain object-left"
-            />
+            Grey Gables Flower Farm
           </Link>
         ) : null}
 

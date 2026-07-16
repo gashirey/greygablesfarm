@@ -1,4 +1,4 @@
--- Short link for Artful Lodger grand opening cards / QR
+-- Point Artful Lodger QR short link /al at the locked found landing
 insert into public.campaigns (slug, name, destination_url, notes)
 values (
   'al',

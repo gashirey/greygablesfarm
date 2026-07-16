@@ -28,10 +28,10 @@ export default function ArrangementPassesIndexPage() {
           want.
         </p>
         <Link
-          href="/found/1"
+          href="/found"
           className="btn mt-8 inline-block border-salmon-dark bg-salmon-dark text-white hover:bg-salmon"
         >
-          Phone-first · five versions (with site nav) →
+          Live QR landing →
         </Link>
         <p className="mt-4 text-sm text-stone">
           Earlier split layouts:{" "}

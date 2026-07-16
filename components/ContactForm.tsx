@@ -34,6 +34,8 @@ type ContactFormProps = {
   hideSubject?: boolean;
   /** Omit phone field (still optional when shown) */
   hidePhone?: boolean;
+  /** No card chrome — for embedding in an outer frame */
+  bare?: boolean;
 };
 
 export function ContactForm({
@@ -46,6 +48,7 @@ export function ContactForm({
   dense = false,
   hideSubject = false,
   hidePhone = false,
+  bare = false,
 }: ContactFormProps) {
   const searchParams = useSearchParams();
   const rawSubject =
@@ -143,7 +146,13 @@ export function ContactForm({
     <form
       onSubmit={handleSubmit}
       className={
-        light ? "" : dense ? "card p-3" : compact ? "card p-4" : "card p-5"
+        light || bare
+          ? ""
+          : dense
+            ? "card p-3"
+            : compact
+              ? "card p-4"
+              : "card p-5"
       }
     >
       <div className={dense ? "space-y-2" : compact ? "space-y-3" : "space-y-4"}>

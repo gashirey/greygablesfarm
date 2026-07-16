@@ -29,12 +29,12 @@ function MobileInquireForm({
 
 type Props = {
   variant: ArrangementMobileVariant;
-  /** When true (main site), skip lab-only chrome cues */
   siteChrome?: boolean;
 };
 
 /**
- * Phone-first QR landing: copy + form first, image as end cap.
+ * Soft-band layout: muted opening band → form → photo end cap.
+ * Header brand color is set per /found/n via Header.
  */
 export function ArrangementMobileVariantView({
   variant,
@@ -42,36 +42,27 @@ export function ArrangementMobileVariantView({
 }: Props) {
   return (
     <div className={siteChrome ? "bg-site-page text-bark" : "bg-[#f7f4f0] text-bark"}>
-      <div className="mx-auto w-full max-w-md px-5 pb-10 pt-8 sm:px-6 sm:pt-10">
-        {!siteChrome && variant.eyebrow ? (
-          <p className="mb-3 text-[11px] uppercase tracking-[0.2em] text-stone">
-            {variant.eyebrow}
+      <div className="border-b border-site-border bg-site-muted-band">
+        <div className="mx-auto w-full max-w-md px-5 py-7 sm:px-6 sm:py-8">
+          <h1 className="font-serif text-[1.55rem] font-medium leading-[1.25] tracking-tight sm:text-[1.85rem]">
+            <span className="block text-bark">{variant.headline}</span>
+            {variant.headlineAccent ? (
+              <span className="mt-2 block text-stone sm:mt-2.5">
+                {variant.headlineAccent}
+              </span>
+            ) : null}
+          </h1>
+          <p className="mt-5 text-[0.95rem] leading-relaxed text-stone">
+            {variant.body}
           </p>
-        ) : null}
-
-        <h1 className="font-serif">
-          <span className="block text-[1.55rem] font-medium leading-[1.25] tracking-tight text-bark sm:text-[1.85rem]">
-            {variant.headline}
-          </span>
-          {variant.headlineAccent ? (
-            <span className="mt-2 block text-[1.7rem] font-medium leading-[1.2] tracking-tight text-stone sm:mt-2.5 sm:text-[2rem]">
-              {variant.headlineAccent}
-            </span>
-          ) : null}
-        </h1>
-
-        <p className="mt-5 text-[0.95rem] leading-relaxed text-stone">
-          {variant.body}
-        </p>
-
-        <div className="mt-7">
-          <MobileInquireForm
-            variantId={variant.id}
-            placeholder={variant.formPlaceholder}
-          />
         </div>
       </div>
-
+      <div className="mx-auto w-full max-w-md px-5 py-8 sm:px-6">
+        <MobileInquireForm
+          variantId={variant.id}
+          placeholder={variant.formPlaceholder}
+        />
+      </div>
       <figure className="mx-auto w-full max-w-md px-5 pb-12 sm:px-6">
         <div className="image-frame relative aspect-[4/3] overflow-hidden bg-parchment">
           <Image

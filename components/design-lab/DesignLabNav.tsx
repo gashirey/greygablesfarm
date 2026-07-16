@@ -61,7 +61,7 @@ export function DesignLabNav() {
             </li>
             <li>
               <Link
-                href="/found/1"
+                href="/found"
                 className={
                   pathname.startsWith("/found") ||
                   pathname.startsWith("/design-lab/arrangements")

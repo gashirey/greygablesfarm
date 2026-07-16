@@ -1,10 +1,14 @@
 export type ArrangementMobileId = "1" | "2" | "3" | "4" | "5";
 
+export type FoundLayoutId = "soft-band";
+
 export type ArrangementMobileVariant = {
   id: ArrangementMobileId;
   name: string;
   pitch: string;
-  /** object-position crop into the landscape source for a phone strip */
+  layout: FoundLayoutId;
+  /** Header brand text color for this mock */
+  brandColor: string;
   imageObjectClass: string;
   eyebrow: string;
   headline: string;
@@ -13,68 +17,87 @@ export type ArrangementMobileVariant = {
   formPlaceholder: string;
 };
 
-/** End-cap arrangement photo (below the form) */
+/** End-cap arrangement photo */
 export const CAMPAIGN_MOBILE_IMAGE =
   "https://ksvhmvpnshccetlavvaz.supabase.co/storage/v1/object/public/product-photos/library/may-19-26/1783597334234-IN7A6007-1aec4705.jpg";
 
+const FOUND_HEADLINE = "Local flowers.";
+const FOUND_HEADLINE_ACCENT = "Inspired design.";
+const FOUND_BODY =
+  "Custom arrangements designed with fresh flowers harvested from Grey Gables in Louisa, Virginia. If you have a need for a stunning, flower-forward arrangement, we'd love to create something unique and special for your home, office or next intimate gathering.";
+
+/** Locked brand color (chosen: chartreuse) */
+const FOUND_BRAND_COLOR = "#9aab5c";
+
 /**
- * Phone-first QR landing variants.
- * Copy + form first; image as end cap.
+ * Soft-band + chartreuse brand locked.
+ * found/1–5 = message placeholder options.
  */
 export const arrangementMobileVariants: ArrangementMobileVariant[] = [
   {
     id: "1",
-    name: "Make it your own",
-    pitch: "Your favorite headline + paragraph.",
+    name: "Occasion + space",
+    pitch: "Placeholder: occasion and where it goes.",
+    layout: "soft-band",
+    brandColor: FOUND_BRAND_COLOR,
     imageObjectClass: "object-cover object-center",
-    eyebrow: "Grey Gables Farm",
-    headline: "Saw something you loved?",
-    headlineAccent: "Make it your own!",
-    body: "Custom arrangements from our fields — for the home that wants real flowers, the business that wants something local, or an intimate gathering that needs a quiet kind of beauty.",
-    formPlaceholder: "Where you saw us, and what you need…",
+    eyebrow: "",
+    headline: FOUND_HEADLINE,
+    headlineAccent: FOUND_HEADLINE_ACCENT,
+    body: FOUND_BODY,
+    formPlaceholder: "Occasion, space, and any colors or flowers you love…",
   },
   {
     id: "2",
-    name: "Local farm",
-    pitch: "Real flowers / local farm headliner.",
-    imageObjectClass: "object-cover object-[50%_45%]",
-    eyebrow: "Grey Gables · Louisa County",
-    headline: "Real flowers.",
-    headlineAccent: "From a local farm.",
-    body: "Custom arrangements from our fields — for homes, businesses, and intimate gatherings. If you saw our work out in the world, we can arrange something of your own.",
-    formPlaceholder: "Home, business, or an intimate event…",
+    name: "Home office event",
+    pitch: "Placeholder: home, office, or gathering.",
+    layout: "soft-band",
+    brandColor: FOUND_BRAND_COLOR,
+    imageObjectClass: "object-cover object-center",
+    eyebrow: "",
+    headline: FOUND_HEADLINE,
+    headlineAccent: FOUND_HEADLINE_ACCENT,
+    body: FOUND_BODY,
+    formPlaceholder: "Home, office, or intimate gathering — and when you need it…",
   },
   {
     id: "3",
-    name: "Own it short",
-    pitch: "Make it your own as the lead line.",
-    imageObjectClass: "object-cover object-[55%_40%]",
-    eyebrow: "Farm-grown · Central Virginia",
-    headline: "Make it your own!",
-    body: "You saw our arrangements. We grow them here — for homes, businesses, and intimate gatherings. Real flowers from a local farm.",
-    formPlaceholder: "What you saw — and what you're hoping for…",
+    name: "Tell us more",
+    pitch: "Placeholder: open invite.",
+    layout: "soft-band",
+    brandColor: FOUND_BRAND_COLOR,
+    imageObjectClass: "object-cover object-center",
+    eyebrow: "",
+    headline: FOUND_HEADLINE,
+    headlineAccent: FOUND_HEADLINE_ACCENT,
+    body: FOUND_BODY,
+    formPlaceholder: "Tell us a little about the arrangement you have in mind…",
   },
   {
     id: "4",
-    name: "Farm + own",
-    pitch: "Local-farm line + Make it your own.",
-    imageObjectClass: "object-cover object-[45%_50%]",
-    eyebrow: "Grey Gables Farm",
-    headline: "Real flowers from a local farm.",
-    headlineAccent: "Make it your own!",
-    body: "Custom arrangements from our fields — for the home that wants real flowers, the business that wants something local, or an intimate gathering that needs a quiet kind of beauty.",
-    formPlaceholder: "A few sentences about what you need…",
+    name: "Style + date",
+    pitch: "Placeholder: style and timing.",
+    layout: "soft-band",
+    brandColor: FOUND_BRAND_COLOR,
+    imageObjectClass: "object-cover object-center",
+    eyebrow: "",
+    headline: FOUND_HEADLINE,
+    headlineAccent: FOUND_HEADLINE_ACCENT,
+    body: FOUND_BODY,
+    formPlaceholder: "Style, size, and the date you have in mind…",
   },
   {
     id: "5",
-    name: "Quiet ask",
-    pitch: "Shortest copy; same photo language.",
-    imageObjectClass: "object-cover object-[60%_42%]",
-    eyebrow: "Grey Gables · Louisa",
-    headline: "Saw something you loved?",
-    headlineAccent: "Make it your own!",
-    body: "Arrangements grown and made on our farm — for homes, businesses, and intimate events.",
-    formPlaceholder: "Tell us what you need…",
+    name: "Where you saw us",
+    pitch: "Placeholder: where they found the work.",
+    layout: "soft-band",
+    brandColor: FOUND_BRAND_COLOR,
+    imageObjectClass: "object-cover object-center",
+    eyebrow: "",
+    headline: FOUND_HEADLINE,
+    headlineAccent: FOUND_HEADLINE_ACCENT,
+    body: FOUND_BODY,
+    formPlaceholder: "Where you saw our work, and what you’d like us to create…",
   },
 ];
 
@@ -82,4 +105,11 @@ export function getArrangementMobileVariant(
   id: string,
 ): ArrangementMobileVariant | undefined {
   return arrangementMobileVariants.find((v) => v.id === id);
+}
+
+export function foundBrandColorForPath(pathname: string): string | null {
+  const match = pathname.match(/^\/found\/([1-5])\/?$/);
+  if (!match) return null;
+  const variant = getArrangementMobileVariant(match[1]);
+  return variant?.brandColor ?? null;
 }

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** Phone-first variants now live on the main site with full nav. */
+/** Exploration folded into the live QR landing. */
 export default function ArrangementMobileLabRedirect() {
   redirect("/found");
 }

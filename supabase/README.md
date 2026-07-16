@@ -76,12 +76,12 @@ Without `RESEND_API_KEY`, inquiries are still saved; email is skipped (check ser
 
 View all form submissions in the site admin at **/admin/inquiries** (contact, delivery, and blooms).
 
-## Artful Lodger campaign
+## Found / Artful Lodger QR campaign
 
-Run `supabase/migrations/019_artful_lodger_campaign.sql` (or create the campaign in **/admin/campaigns**):
+Run `supabase/migrations/019_artful_lodger_campaign.sql` and `021_al_campaign_found.sql` (or set in **/admin/campaigns**):
 
-- Page: `/artful-lodger`
-- Short link: `/al` → `/artful-lodger`
+- Page: `/found`
+- Short link: `/al` → `/found`
 
 ## Media library dimensions
 
