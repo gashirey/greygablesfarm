@@ -15,13 +15,41 @@ const subjectLabels: Record<string, string> = {
 
 type FormStatus = "idle" | "loading" | "success" | "error";
 
+type ContactSubject = "flowers" | "event" | "general";
+
 type ContactFormProps = {
   variant?: "default" | "light";
+  /** Prefer this subject when the URL has no ?subject= */
+  defaultSubject?: ContactSubject;
+  messagePlaceholder?: string;
+  /** Stored on the contact for campaign attribution (e.g. campaign_artful_lodger) */
+  source?: string;
+  /** Prefixed into the saved notes so you know which page they came from */
+  contextNote?: string;
+  /** Tighter spacing for QR / phone campaign pages */
+  compact?: boolean;
+  /** Single-viewport density: smaller fields, name/email side by side */
+  dense?: boolean;
+  /** Hide subject select; still submits defaultSubject */
+  hideSubject?: boolean;
+  /** Omit phone field (still optional when shown) */
+  hidePhone?: boolean;
 };
 
-export function ContactForm({ variant = "default" }: ContactFormProps) {
+export function ContactForm({
+  variant = "default",
+  defaultSubject: defaultSubjectProp,
+  messagePlaceholder,
+  source,
+  contextNote,
+  compact = false,
+  dense = false,
+  hideSubject = false,
+  hidePhone = false,
+}: ContactFormProps) {
   const searchParams = useSearchParams();
-  const rawSubject = searchParams.get("subject") ?? "general";
+  const rawSubject =
+    searchParams.get("subject") ?? defaultSubjectProp ?? "general";
   const subjectKey = rawSubject === "wedding" ? "event" : rawSubject;
   const defaultSubject = subjectLabels[subjectKey] ?? subjectLabels.general;
 
@@ -68,6 +96,8 @@ export function ContactForm({ variant = "default" }: ContactFormProps) {
           phone: data.get("phone") || undefined,
           subject: data.get("subject"),
           message: data.get("message"),
+          source: source || undefined,
+          context: contextNote || undefined,
         }),
       });
       const json = await res.json();
@@ -90,12 +120,16 @@ export function ContactForm({ variant = "default" }: ContactFormProps) {
   const disabled = status === "loading" || status === "success";
   const light = variant === "light";
   const labelClass = light
-    ? "block text-sm font-medium text-white"
-    : "block text-sm font-medium text-bark";
+    ? `block font-medium text-white ${dense ? "text-xs" : "text-sm"}`
+    : `block font-medium text-bark ${dense ? "text-xs" : "text-sm"}`;
   const optionalClass = light ? "font-normal text-white/70" : "font-normal text-stone";
   const inputClass = light
-    ? "mt-1 w-full rounded-sm border border-white/25 bg-white/85 px-4 py-2.5 text-bark outline-none focus:border-salmon focus:ring-1 focus:ring-salmon"
-    : "input mt-1";
+    ? `mt-1 w-full rounded-sm border border-white/25 bg-white/85 text-bark outline-none focus:border-salmon focus:ring-1 focus:ring-salmon ${
+        dense ? "px-3 py-2 text-sm" : "px-4 py-2.5"
+      }`
+    : dense
+      ? "input mt-1 px-3 py-2 text-sm"
+      : "input mt-1";
   const statusClass =
     status === "error"
       ? light
@@ -108,66 +142,76 @@ export function ContactForm({ variant = "default" }: ContactFormProps) {
   return (
     <form
       onSubmit={handleSubmit}
-      className={light ? "" : "card p-5"}
+      className={
+        light ? "" : dense ? "card p-3" : compact ? "card p-4" : "card p-5"
+      }
     >
-      <div className="space-y-4">
-        <div>
-          <label htmlFor="name" className={labelClass}>
-            Name
-          </label>
-          <input
-            id="name"
-            name="name"
-            type="text"
-            required
-            autoComplete="name"
-            disabled={disabled}
-            className={inputClass}
-          />
+      <div className={dense ? "space-y-2" : compact ? "space-y-3" : "space-y-4"}>
+        <div className={dense ? "grid grid-cols-2 gap-2" : "contents"}>
+          <div>
+            <label htmlFor="name" className={labelClass}>
+              Name
+            </label>
+            <input
+              id="name"
+              name="name"
+              type="text"
+              required
+              autoComplete="name"
+              disabled={disabled}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label htmlFor="email" className={labelClass}>
+              Email
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              disabled={disabled}
+              className={inputClass}
+            />
+          </div>
         </div>
-        <div>
-          <label htmlFor="email" className={labelClass}>
-            Email
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            required
-            autoComplete="email"
-            disabled={disabled}
-            className={inputClass}
-          />
-        </div>
-        <div>
-          <label htmlFor="phone" className={labelClass}>
-            Phone <span className={optionalClass}>(optional)</span>
-          </label>
-          <input
-            id="phone"
-            name="phone"
-            type="tel"
-            autoComplete="tel"
-            disabled={disabled}
-            className={inputClass}
-          />
-        </div>
-        <div>
-          <label htmlFor="subject" className={labelClass}>
-            Subject
-          </label>
-          <select
-            id="subject"
-            name="subject"
-            defaultValue={subjectKey}
-            disabled={disabled}
-            className={inputClass}
-          >
-            <option value="flowers">Flower inquiry</option>
-            <option value="event">Event</option>
-            <option value="general">General question</option>
-          </select>
-        </div>
+        {!hidePhone ? (
+          <div>
+            <label htmlFor="phone" className={labelClass}>
+              Phone <span className={optionalClass}>(optional)</span>
+            </label>
+            <input
+              id="phone"
+              name="phone"
+              type="tel"
+              autoComplete="tel"
+              disabled={disabled}
+              className={inputClass}
+            />
+          </div>
+        ) : null}
+        {hideSubject ? (
+          <input type="hidden" name="subject" value={subjectKey} />
+        ) : (
+          <div>
+            <label htmlFor="subject" className={labelClass}>
+              Subject
+            </label>
+            <select
+              id="subject"
+              name="subject"
+              defaultValue={subjectKey}
+              disabled={disabled}
+              className={inputClass}
+            >
+              <option value="flowers">Flower inquiry</option>
+              <option value="event">Event</option>
+              <option value="general">General question</option>
+            </select>
+          </div>
+        )}
         <div>
           <label htmlFor="message" className={labelClass}>
             Message
@@ -175,11 +219,14 @@ export function ContactForm({ variant = "default" }: ContactFormProps) {
           <textarea
             id="message"
             name="message"
-            rows={4}
+            rows={dense ? 2 : compact ? 3 : 4}
             required
             disabled={disabled}
-            placeholder={`Tell us about your ${defaultSubject.toLowerCase()}...`}
-            className={`${inputClass} resize-y`}
+            placeholder={
+              messagePlaceholder ??
+              `Tell us about your ${defaultSubject.toLowerCase()}...`
+            }
+            className={`${inputClass} resize-none`}
           />
         </div>
 
@@ -195,7 +242,9 @@ export function ContactForm({ variant = "default" }: ContactFormProps) {
         <button
           type="submit"
           disabled={disabled}
-          className="btn w-full border-salmon-dark bg-salmon-dark text-white hover:bg-salmon disabled:opacity-60"
+          className={`btn w-full border-salmon-dark bg-salmon-dark text-white hover:bg-salmon disabled:opacity-60 ${
+            dense ? "py-2.5 text-sm" : ""
+          }`}
         >
           {status === "loading" ? "Sending…" : "Send message"}
         </button>

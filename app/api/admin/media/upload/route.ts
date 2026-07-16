@@ -79,17 +79,38 @@ export async function POST(request: Request) {
 
     const alt = file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ");
 
-    const { data, error } = await supabase
+    const row = {
+      shoot_id: typeof shootId === "string" && shootId ? shootId : null,
+      storage_path: result.path,
+      public_url: result.imageUrl,
+      filename: file.name,
+      alt_text: alt,
+      width: result.width,
+      height: result.height,
+    };
+
+    let { data, error } = await supabase
       .from("media_assets")
-      .insert({
-        shoot_id: typeof shootId === "string" && shootId ? shootId : null,
-        storage_path: result.path,
-        public_url: result.imageUrl,
-        filename: file.name,
-        alt_text: alt,
-      })
+      .insert(row)
       .select("id, public_url, filename")
       .single();
+
+    // Migration 020 not applied yet — save without dimensions.
+    if (error && /width|height|column/i.test(error.message)) {
+      const fallback = await supabase
+        .from("media_assets")
+        .insert({
+          shoot_id: row.shoot_id,
+          storage_path: row.storage_path,
+          public_url: row.public_url,
+          filename: row.filename,
+          alt_text: row.alt_text,
+        })
+        .select("id, public_url, filename")
+        .single();
+      data = fallback.data;
+      error = fallback.error;
+    }
 
     if (error) {
       errors.push({ filename: file.name, error: error.message });

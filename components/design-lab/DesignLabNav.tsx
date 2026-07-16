@@ -61,6 +61,19 @@ export function DesignLabNav() {
             </li>
             <li>
               <Link
+                href="/found/1"
+                className={
+                  pathname.startsWith("/found") ||
+                  pathname.startsWith("/design-lab/arrangements")
+                    ? "font-medium text-salmon-dark"
+                    : "hover:text-bark"
+                }
+              >
+                Found us?
+              </Link>
+            </li>
+            <li>
+              <Link
                 href="/design-lab/samples"
                 className={pathname.startsWith("/design-lab/samples") ? "font-medium text-salmon-dark" : "hover:text-bark"}
               >

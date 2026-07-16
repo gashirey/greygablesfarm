@@ -32,8 +32,34 @@ Add the same in **Vercel**. Never expose the secret key to the browser.
 | `POST /api/subscribe` | Footer newsletter signup |
 | `POST /api/contact` | Contact page inquiry |
 | `POST /api/delivery-inquiry` | Send Flowers delivery inquiry |
+| `POST /api/blooms-booking` | Photos in the Blooms date-night booking |
 
 Legacy `POST /api/subscribe/mailing` and `/sms` still work but are deprecated.
+
+## Photos in the Blooms bookings
+
+Run `supabase/migrations/018_blooms_bookings.sql` for the `blooms_bookings` table.
+
+Page: `/photos-in-the-blooms`
+
+### Stripe (optional — same account as Rooted)
+
+You can reuse the **same Stripe account** used for Rooted Farmers / Shopify. Create a separate product in the Stripe Dashboard (or let Checkout create one inline). Add to Vercel / `.env.local`:
+
+```bash
+STRIPE_SECRET_KEY=sk_live_...          # or sk_test_... for sandbox
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...        # endpoint: /api/stripe/webhook
+NEXT_PUBLIC_SITE_URL=https://greygablesfarm.com
+```
+
+Optional fallback without Checkout API — paste a [Payment Link](https://dashboard.stripe.com/payment-links) URL:
+
+```bash
+STRIPE_BLOOMS_PAYMENT_LINK=https://buy.stripe.com/...
+```
+
+When Stripe keys are set, the booking form redirects to Checkout after saving the request. The webhook marks bookings as paid.
 
 ## Delivery inquiries
 
@@ -47,6 +73,19 @@ RESEND_FROM="Grey Gables <notifications@greygablesfarm.com>"
 ```
 
 Without `RESEND_API_KEY`, inquiries are still saved; email is skipped (check server logs).
+
+View all form submissions in the site admin at **/admin/inquiries** (contact, delivery, and blooms).
+
+## Artful Lodger campaign
+
+Run `supabase/migrations/019_artful_lodger_campaign.sql` (or create the campaign in **/admin/campaigns**):
+
+- Page: `/artful-lodger`
+- Short link: `/al` → `/artful-lodger`
+
+## Media library dimensions
+
+Run `supabase/migrations/020_media_asset_dimensions.sql` to store `width` / `height` on `media_assets` (landscape / portrait filter on **/admin/media**). New uploads save sizes automatically; existing images are scanned when you open a shoot.
 
 ## 5. Segmentation examples
 

@@ -36,6 +36,14 @@ export async function POST(request: Request) {
   const message = typeof payload.message === "string" ? payload.message : "";
   const subject =
     typeof payload.subject === "string" ? payload.subject : "general";
+  const source =
+    typeof payload.source === "string" && payload.source.trim()
+      ? payload.source.trim().slice(0, 80)
+      : "website_contact_form";
+  const context =
+    typeof payload.context === "string" && payload.context.trim()
+      ? payload.context.trim().slice(0, 200)
+      : null;
 
   if (!name.trim() || !email.trim() || !message.trim()) {
     return NextResponse.json(
@@ -46,6 +54,9 @@ export async function POST(request: Request) {
 
   const { firstName, lastName } = splitName(name);
   const subjectTags = SUBJECT_TAGS[subject] ?? [];
+  const notes = context
+    ? `[${context}]\n${message.trim()}`
+    : message.trim();
 
   const result = await upsertContact({
     firstName,
@@ -54,17 +65,19 @@ export async function POST(request: Request) {
     phone,
     emailOptIn: false,
     smsOptIn: false,
-    source: "website_contact_form",
+    source,
     customerType:
       subject === "event" || subject === "wedding"
         ? "event"
         : subject === "flowers"
           ? "flowers"
           : "general",
-    notes: message.trim(),
+    notes,
     tags: subjectTags,
     activityType: "inquiry_received",
-    activityDetail: `subject:${subject}`,
+    activityDetail: context
+      ? `subject:${subject}; context:${context}`
+      : `subject:${subject}`,
   });
 
   if (!result.ok) {

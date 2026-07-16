@@ -15,6 +15,11 @@ import { readAdminUploadError } from "@/lib/admin/upload-response";
 import { AdminNotice } from "@/components/admin/AdminNotice";
 import { SaveToPhotosButton } from "@/components/admin/SaveToPhotosButton";
 import { SiteSlotsOverview } from "@/components/admin/SiteSlotsOverview";
+import {
+  MEDIA_ORIENTATION_LABELS,
+  mediaOrientation,
+  type MediaOrientation,
+} from "@/lib/media/orientation";
 import type { MediaAsset, MediaShoot } from "@/lib/media/types";
 import type { FarmProduct } from "@/lib/inventory/types";
 
@@ -22,7 +27,26 @@ function isRemoteSrc(url: string): boolean {
   return url.startsWith("http://") || url.startsWith("https://");
 }
 
+function probeImageSize(
+  url: string,
+): Promise<{ width: number; height: number } | null> {
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    img.onload = () => {
+      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+        resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      } else {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
 const BATCH_SIZE = 8;
+
+type OrientationFilter = "all" | MediaOrientation;
 
 export function MediaLibrary() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -43,6 +67,10 @@ export function MediaLibrary() {
   const [slotsRefreshKey, setSlotsRefreshKey] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const [assigningId, setAssigningId] = useState<string | null>(null);
+  const [orientationFilter, setOrientationFilter] =
+    useState<OrientationFilter>("all");
+  const [scanningDimensions, setScanningDimensions] = useState(false);
+  const scannedShootRef = useRef<string | null>(null);
 
   function showNotice(type: "success" | "error", text: string) {
     setNotice({ type, message: text });
@@ -76,8 +104,79 @@ export function MediaLibrary() {
       setSetupError(data.error ?? "Could not load library.");
       return;
     }
-    setAssets((data.assets ?? []) as MediaAsset[]);
+    const list = (data.assets ?? []) as MediaAsset[];
+    setAssets(
+      list.map((a) => ({
+        ...a,
+        width: a.width ?? null,
+        height: a.height ?? null,
+      })),
+    );
   }, []);
+
+  const fillMissingDimensions = useCallback(
+    async (list: MediaAsset[], forShootId: string) => {
+      const missing = list.filter((a) => !a.width || !a.height);
+      if (!missing.length) return;
+
+      setScanningDimensions(true);
+      const probed: { id: string; width: number; height: number }[] = [];
+
+      for (let i = 0; i < missing.length; i += 6) {
+        const chunk = missing.slice(i, i + 6);
+        const results = await Promise.all(
+          chunk.map(async (asset) => {
+            const size = await probeImageSize(asset.public_url);
+            if (!size) return null;
+            return { id: asset.id, ...size };
+          }),
+        );
+        for (const row of results) {
+          if (row) probed.push(row);
+        }
+      }
+
+      if (probed.length) {
+        setAssets((prev) =>
+          prev.map((asset) => {
+            const hit = probed.find((p) => p.id === asset.id);
+            return hit
+              ? { ...asset, width: hit.width, height: hit.height }
+              : asset;
+          }),
+        );
+
+        const res = await fetch("/api/admin/media/assets/dimensions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ assets: probed }),
+        });
+        const data = await res.json();
+        if (!res.ok && data.error) {
+          // Columns missing until migration 020 — filter still works in-session.
+          if (/width|column|migration/i.test(String(data.error))) {
+            setMessage(
+              "Orientation filter is ready for this session. Run migration 020_media_asset_dimensions.sql to save sizes permanently.",
+            );
+          }
+        }
+      }
+
+      // Server Sharp backfill for anything the browser couldn't read
+      const stillMissing = missing.length - probed.length;
+      if (stillMissing > 0) {
+        await fetch("/api/admin/media/assets/dimensions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ shoot_id: forShootId, limit: 40 }),
+        });
+        await loadAssets(forShootId);
+      }
+
+      setScanningDimensions(false);
+    },
+    [loadAssets],
+  );
 
   useEffect(() => {
     (async () => {
@@ -94,8 +193,26 @@ export function MediaLibrary() {
   }, [loadShoots]);
 
   useEffect(() => {
-    if (shootId) void loadAssets(shootId);
+    if (!shootId) return;
+    scannedShootRef.current = null;
+    setAssets([]);
+    setOrientationFilter("all");
+    void loadAssets(shootId);
   }, [shootId, loadAssets]);
+
+  useEffect(() => {
+    if (!shootId || !assets.length) return;
+    if (scannedShootRef.current === shootId) return;
+    // Only scan once assets for this shoot have loaded
+    if (assets.some((a) => a.shoot_id && a.shoot_id !== shootId)) return;
+    const needsScan = assets.some((a) => !a.width || !a.height);
+    if (!needsScan) {
+      scannedShootRef.current = shootId;
+      return;
+    }
+    scannedShootRef.current = shootId;
+    void fillMissingDimensions(assets, shootId);
+  }, [assets, shootId, fillMissingDimensions]);
 
   async function createShoot(e: React.FormEvent) {
     e.preventDefault();
@@ -390,9 +507,29 @@ export function MediaLibrary() {
       </section>
 
       <section>
-        <h2 className="font-serif text-lg text-bark">
-          Library {assets.length ? `(${assets.length})` : ""}
-        </h2>
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h2 className="font-serif text-lg text-bark">
+            Library{" "}
+            {assets.length
+              ? `(${
+                  orientationFilter === "all"
+                    ? assets.length
+                    : assets.filter(
+                        (a) =>
+                          mediaOrientation(a.width, a.height) ===
+                          orientationFilter,
+                      ).length
+                }${
+                  orientationFilter === "all"
+                    ? ""
+                    : ` of ${assets.length}`
+                })`
+              : ""}
+          </h2>
+          {scanningDimensions ? (
+            <p className="text-xs text-stone">Reading image sizes…</p>
+          ) : null}
+        </div>
         <p className="mt-1 text-sm text-stone">
           Use on site — assigns to homepage, about, or a product.
         </p>
@@ -405,11 +542,71 @@ export function MediaLibrary() {
           for Photos (share sheet) and captions.
         </p>
 
+        {assets.length > 0 ? (
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span className="text-xs uppercase tracking-wide text-stone">
+              Orientation
+            </span>
+            {(
+              [
+                ["all", "All"],
+                ["landscape", MEDIA_ORIENTATION_LABELS.landscape],
+                ["portrait", MEDIA_ORIENTATION_LABELS.portrait],
+                ["square", MEDIA_ORIENTATION_LABELS.square],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setOrientationFilter(value)}
+                className={
+                  orientationFilter === value
+                    ? "border border-bark bg-bark px-2.5 py-1 text-xs text-white"
+                    : "border border-parchment bg-white px-2.5 py-1 text-xs text-stone hover:border-bark/40 hover:text-bark"
+                }
+              >
+                {label}
+              </button>
+            ))}
+            <button
+              type="button"
+              disabled={scanningDimensions}
+              onClick={() => {
+                scannedShootRef.current = null;
+                void fillMissingDimensions(assets, shootId);
+              }}
+              className="ml-auto border border-parchment px-2.5 py-1 text-xs text-stone hover:border-bark/40 hover:text-bark disabled:opacity-50"
+            >
+              Rescan sizes
+            </button>
+          </div>
+        ) : null}
+
         {assets.length === 0 ? (
           <p className="mt-6 text-sm text-stone">No images in this shoot yet.</p>
+        ) : orientationFilter !== "all" &&
+          !assets.some(
+            (a) =>
+              mediaOrientation(a.width, a.height) === orientationFilter,
+          ) ? (
+          <p className="mt-6 text-sm text-stone">
+            No {MEDIA_ORIENTATION_LABELS[orientationFilter].toLowerCase()}{" "}
+            images in this shoot
+            {scanningDimensions ? " yet — still reading sizes…" : "."}
+          </p>
         ) : (
           <ul className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {assets.map((asset) => (
+            {assets
+              .filter((asset) => {
+                if (orientationFilter === "all") return true;
+                return (
+                  mediaOrientation(asset.width, asset.height) ===
+                  orientationFilter
+                );
+              })
+              .map((asset) => {
+              const orientation = mediaOrientation(asset.width, asset.height);
+              return (
               <li
                 key={asset.id}
                 className="border border-parchment bg-white p-2 sm:p-3"
@@ -423,8 +620,18 @@ export function MediaLibrary() {
                     sizes="(max-width: 640px) 50vw, 240px"
                     unoptimized={isRemoteSrc(asset.public_url)}
                   />
+                  {orientation ? (
+                    <span className="absolute left-1.5 top-1.5 border border-parchment bg-cream/95 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-bark">
+                      {MEDIA_ORIENTATION_LABELS[orientation]}
+                    </span>
+                  ) : null}
                 </div>
                 <p className="mt-2 truncate text-xs text-stone">{asset.filename}</p>
+                {asset.width && asset.height ? (
+                  <p className="text-[10px] text-stone">
+                    {asset.width}×{asset.height}
+                  </p>
+                ) : null}
                 <div className="mt-2 grid grid-cols-2 gap-1">
                   <a
                     href={asset.public_url}
@@ -486,7 +693,8 @@ export function MediaLibrary() {
                   </select>
                 </label>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </section>

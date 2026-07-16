@@ -49,6 +49,16 @@ export default function AdminDashboardPage() {
           </p>
         </Link>
         <Link
+          href="/admin/inquiries"
+          className="border border-parchment bg-white p-5 hover:border-bark/30"
+        >
+          <p className="font-medium text-bark">Inquiries</p>
+          <p className="mt-1 text-sm text-stone">
+            Contact, delivery, and booking form submissions — viewable even
+            without email alerts.
+          </p>
+        </Link>
+        <Link
           href="/admin/campaigns"
           className="border border-parchment bg-white p-5 hover:border-bark/30"
         >

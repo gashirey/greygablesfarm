@@ -12,5 +12,7 @@ export type MediaAsset = {
   public_url: string;
   filename: string;
   alt_text: string | null;
+  width: number | null;
+  height: number | null;
   created_at: string;
 };
