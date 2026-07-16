@@ -109,7 +109,7 @@ export const subscribe = {
 } as const;
 
 export const social = {
-  instagram: "" as string,
+  instagram: "https://www.instagram.com/grey.gables.flowerfarm/" as string,
 } as const;
 
 export const ordering = {
