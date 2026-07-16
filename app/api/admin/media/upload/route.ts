@@ -112,8 +112,11 @@ export async function POST(request: Request) {
       error = fallback.error;
     }
 
-    if (error) {
-      errors.push({ filename: file.name, error: error.message });
+    if (error || !data) {
+      errors.push({
+        filename: file.name,
+        error: error?.message ?? "Upload saved but no row returned.",
+      });
       continue;
     }
 
