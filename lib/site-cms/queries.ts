@@ -42,8 +42,19 @@ function parseSettingsRow(raw: Record<string, unknown>): SiteSettingsRow {
   };
 }
 
-export async function getSiteSettingsRow(): Promise<SiteSettingsRow> {
-  if (!isSupabaseConfigured()) return DEFAULT_SITE_SETTINGS;
+export type SiteSettingsLoad = {
+  settings: SiteSettingsRow;
+  /** False until migration 022_hero_slide_interval.sql has been applied. */
+  hasHeroSlideIntervalColumn: boolean;
+};
+
+export async function getSiteSettingsLoad(): Promise<SiteSettingsLoad> {
+  if (!isSupabaseConfigured()) {
+    return {
+      settings: DEFAULT_SITE_SETTINGS,
+      hasHeroSlideIntervalColumn: true,
+    };
+  }
 
   const supabase = createServiceClient();
   const { data, error } = await supabase
@@ -54,11 +65,32 @@ export async function getSiteSettingsRow(): Promise<SiteSettingsRow> {
 
   if (error) {
     console.error("[getSiteSettingsRow]", error);
-    return DEFAULT_SITE_SETTINGS;
+    return {
+      settings: DEFAULT_SITE_SETTINGS,
+      hasHeroSlideIntervalColumn: false,
+    };
   }
 
-  if (!data) return DEFAULT_SITE_SETTINGS;
-  return parseSettingsRow(data as Record<string, unknown>);
+  if (!data) {
+    return {
+      settings: DEFAULT_SITE_SETTINGS,
+      hasHeroSlideIntervalColumn: false,
+    };
+  }
+
+  const raw = data as Record<string, unknown>;
+  return {
+    settings: parseSettingsRow(raw),
+    hasHeroSlideIntervalColumn: Object.prototype.hasOwnProperty.call(
+      raw,
+      "hero_slide_interval_ms",
+    ),
+  };
+}
+
+export async function getSiteSettingsRow(): Promise<SiteSettingsRow> {
+  const { settings } = await getSiteSettingsLoad();
+  return settings;
 }
 
 export async function getSiteNavItemsRaw(): Promise<SiteNavItemRow[]> {

@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { ADMIN_COOKIE, verifyAdminSessionToken } from "@/lib/admin/auth";
 import { getCampaignBySlug } from "@/lib/campaigns/queries";
 import {
   isCampaignSlug,
   isReservedCampaignSlug,
 } from "@/lib/campaigns/slug";
+import { geoFromRequest } from "@/lib/tracking/geo";
 import {
+  isAdminOriginReferrer,
   logSiteVisit,
   searchParamsFromUrl,
 } from "@/lib/tracking/visit";
@@ -26,16 +29,26 @@ export async function GET(request: NextRequest, { params }: Params) {
   const searchParams = searchParamsFromUrl(request.nextUrl.search);
   const referrer = request.headers.get("referer");
   const userAgent = request.headers.get("user-agent");
+  const hasAdminSession = await verifyAdminSessionToken(
+    request.cookies.get(ADMIN_COOKIE)?.value,
+  );
 
-  await logSiteVisit({
-    campaignId: campaign?.id ?? null,
-    slug,
-    pathname: `/${slug}`,
-    searchParams,
-    referrer,
-    userAgent,
-    visitType: "campaign",
-  });
+  // Don't count admin preview / test scans as outside visits.
+  if (!hasAdminSession && !isAdminOriginReferrer(referrer)) {
+    const geo = geoFromRequest(request);
+    await logSiteVisit({
+      campaignId: campaign?.id ?? null,
+      slug,
+      pathname: `/${slug}`,
+      searchParams,
+      referrer,
+      userAgent,
+      visitType: "campaign",
+      geoCity: geo.geoCity,
+      geoRegion: geo.geoRegion,
+      geoCountry: geo.geoCountry,
+    });
+  }
 
   const destination =
     campaign?.is_active && campaign.destination_url

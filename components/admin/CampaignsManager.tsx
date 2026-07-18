@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { CampaignWithStats, SiteVisitEvent } from "@/lib/campaigns/types";
+import { formatVisitGeo } from "@/lib/tracking/geo";
 
 type FormState = {
   slug: string;
@@ -273,20 +275,25 @@ export function CampaignsManager() {
       </section>
 
       <section>
-        <h2 className="font-serif text-lg text-bark">Recent visits</h2>
+        <h2 className="font-serif text-lg text-bark">Recent outside visits</h2>
         <p className="mt-1 text-sm text-stone">
-          Campaign scans plus pages and query strings beyond the homepage.
+          Public traffic only (admin clicks excluded). Full list:{" "}
+          <Link href="/admin/visits" className="underline underline-offset-2">
+            Visits
+          </Link>
+          .
         </p>
         {visits.length === 0 ? (
           <p className="mt-3 text-sm text-stone">No visits logged yet.</p>
         ) : (
           <div className="mt-4 overflow-x-auto border border-parchment bg-white">
-            <table className="w-full min-w-[36rem] text-left text-sm">
+            <table className="w-full min-w-[42rem] text-left text-sm">
               <thead className="border-b border-parchment text-xs text-stone">
                 <tr>
                   <th className="px-3 py-2 font-medium">When</th>
                   <th className="px-3 py-2 font-medium">Type</th>
                   <th className="px-3 py-2 font-medium">Path</th>
+                  <th className="px-3 py-2 font-medium">Location</th>
                   <th className="px-3 py-2 font-medium">Params</th>
                   <th className="px-3 py-2 font-medium">Slug</th>
                 </tr>
@@ -299,6 +306,9 @@ export function CampaignsManager() {
                     </td>
                     <td className="px-3 py-2 text-stone">{visit.visit_type}</td>
                     <td className="px-3 py-2 text-bark">{visit.pathname}</td>
+                    <td className="px-3 py-2 text-bark">
+                      {formatVisitGeo(visit)}
+                    </td>
                     <td className="px-3 py-2 text-stone">
                       {formatParams(visit.search_params)}
                     </td>

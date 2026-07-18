@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/require";
 import {
   listCampaignsWithStats,
-  listRecentVisitEvents,
+  listOutsideVisitEvents,
 } from "@/lib/campaigns/queries";
 import {
   isCampaignSlug,
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
 
   const [campaigns, visits] = await Promise.all([
     listCampaignsWithStats(),
-    listRecentVisitEvents(100),
+    listOutsideVisitEvents(100),
   ]);
 
   return NextResponse.json({ campaigns, visits });

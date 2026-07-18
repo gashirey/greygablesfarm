@@ -17,6 +17,8 @@ const COLOR_FIELDS: { key: keyof SiteColorOverrides; label: string }[] = [
 
 export function SiteAppearancePanel() {
   const [settings, setSettings] = useState<SiteSettingsRow | null>(null);
+  const [hasHeroSlideIntervalColumn, setHasHeroSlideIntervalColumn] =
+    useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{
     type: "success" | "error";
@@ -32,6 +34,7 @@ export function SiteAppearancePanel() {
       return;
     }
     setSettings(data.settings as SiteSettingsRow);
+    setHasHeroSlideIntervalColumn(data.hasHeroSlideIntervalColumn !== false);
     setSetupError("");
   }, []);
 
@@ -214,6 +217,7 @@ export function SiteAppearancePanel() {
             <select
               className="input mt-1 w-full max-w-xs"
               value={String(settings.hero_slide_interval_ms ?? 14000)}
+              disabled={!hasHeroSlideIntervalColumn}
               onChange={(e) =>
                 setSettings({
                   ...settings,
@@ -229,7 +233,9 @@ export function SiteAppearancePanel() {
               <option value="30000">30 seconds</option>
             </select>
             <span className="mt-1 block text-xs text-stone">
-              How long each hero photo stays before fading to the next.
+              {hasHeroSlideIntervalColumn
+                ? "How long each hero photo stays before fading to the next."
+                : "Run supabase/migrations/022_hero_slide_interval.sql in Supabase to enable this control."}
             </span>
           </label>
         </div>
@@ -241,8 +247,12 @@ export function SiteAppearancePanel() {
             void save({
               hero_layout: settings.hero_layout,
               hero_frame: settings.hero_frame,
-              hero_slide_interval_ms:
-                settings.hero_slide_interval_ms ?? 14000,
+              ...(hasHeroSlideIntervalColumn
+                ? {
+                    hero_slide_interval_ms:
+                      settings.hero_slide_interval_ms ?? 14000,
+                  }
+                : {}),
             })
           }
         >

@@ -89,7 +89,15 @@ Run `supabase/migrations/020_media_asset_dimensions.sql` to store `width` / `hei
 
 ## Homepage slideshow speed
 
-Run `supabase/migrations/022_hero_slide_interval.sql` to add `hero_slide_interval_ms` on `site_settings`. Adjust in **Admin → Site editor → Appearance** (Homepage hero layout).
+**Required for the Appearance → Slideshow speed control.** Until this runs, the site editor omits that column on save so wording / colors / layout still persist.
+
+1. Supabase → **SQL Editor**
+2. Paste and run `supabase/migrations/022_hero_slide_interval.sql`
+3. Adjust speed in **Admin → Site editor → Appearance** (Homepage hero layout)
+
+## QR scan approximate location
+
+Run `supabase/migrations/023_visit_geo.sql` to add `geo_city` / `geo_region` / `geo_country` on `site_visit_events`. Campaign short-link scans (`/al`, `/bc`, …) store Vercel IP geo when available. View on **Admin → Visits**.
 
 ## 5. Segmentation examples
 

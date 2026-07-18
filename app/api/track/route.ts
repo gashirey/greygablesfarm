@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { ADMIN_COOKIE, verifyAdminSessionToken } from "@/lib/admin/auth";
 import { isCampaignPathSegment } from "@/lib/campaigns/slug";
+import { geoFromRequest } from "@/lib/tracking/geo";
 import {
   logSiteVisit,
   searchParamsFromUrl,
-  shouldTrackPublicVisit,
+  shouldLogOutsideVisitor,
 } from "@/lib/tracking/visit";
 
 type TrackBody = {
@@ -11,6 +14,9 @@ type TrackBody = {
   search?: string;
   referrer?: string | null;
   userAgent?: string | null;
+  geoCity?: string | null;
+  geoRegion?: string | null;
+  geoCountry?: string | null;
 };
 
 function isAuthorized(request: Request): boolean {
@@ -33,8 +39,19 @@ export async function POST(request: Request) {
 
   const pathname = body.pathname?.trim() ?? "";
   const search = body.search ?? "";
+  const referrer = body.referrer ?? null;
+  const token = (await cookies()).get(ADMIN_COOKIE)?.value;
+  const hasAdminSession = await verifyAdminSessionToken(token);
 
-  if (!pathname || !shouldTrackPublicVisit(pathname, search)) {
+  if (
+    !pathname ||
+    !shouldLogOutsideVisitor({
+      pathname,
+      search,
+      referrer,
+      hasAdminSession,
+    })
+  ) {
     return new NextResponse(null, { status: 204 });
   }
 
@@ -46,12 +63,22 @@ export async function POST(request: Request) {
   const visitType =
     searchParams && Object.keys(searchParams).length > 0 ? "query" : "path";
 
+  // Prefer geo forwarded from middleware (original visitor request).
+  // Fall back to headers on this request (empty for internal middleware fetch).
+  const headerGeo = geoFromRequest(request);
+  const geoCity = body.geoCity ?? headerGeo.geoCity;
+  const geoRegion = body.geoRegion ?? headerGeo.geoRegion;
+  const geoCountry = body.geoCountry ?? headerGeo.geoCountry;
+
   await logSiteVisit({
     pathname,
     searchParams,
-    referrer: body.referrer ?? null,
+    referrer,
     userAgent: body.userAgent ?? null,
     visitType,
+    geoCity,
+    geoRegion,
+    geoCountry,
   });
 
   return new NextResponse(null, { status: 204 });

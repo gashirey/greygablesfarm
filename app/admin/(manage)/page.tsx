@@ -86,11 +86,11 @@ export default function AdminDashboardPage() {
           </p>
         </Link>
         <Link
-          href="/available-now"
+          href="/"
           className="border border-parchment bg-white p-5 hover:border-bark/30"
         >
-          <p className="font-medium text-bark">Public page</p>
-          <p className="mt-1 text-sm text-stone">Preview what visitors see.</p>
+          <p className="font-medium text-bark">View public site</p>
+          <p className="mt-1 text-sm text-stone">Open the live homepage.</p>
         </Link>
       </div>
     </div>

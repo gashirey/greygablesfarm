@@ -1,5 +1,6 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { isOutsideVisitorEvent } from "@/lib/tracking/visit";
 import type { Campaign, CampaignWithStats, SiteVisitEvent } from "./types";
 
 export function isCampaignsConfigured(): boolean {
@@ -45,7 +46,7 @@ export async function listCampaignsWithStats(): Promise<CampaignWithStats[]> {
 
   const { data: counts, error: countError } = await supabase
     .from("site_visit_events")
-    .select("campaign_id")
+    .select("campaign_id, referrer")
     .eq("visit_type", "campaign")
     .not("campaign_id", "is", null);
 
@@ -55,6 +56,7 @@ export async function listCampaignsWithStats(): Promise<CampaignWithStats[]> {
 
   const countByCampaign = new Map<string, number>();
   for (const row of counts ?? []) {
+    if (!isOutsideVisitorEvent(row)) continue;
     const id = row.campaign_id as string;
     countByCampaign.set(id, (countByCampaign.get(id) ?? 0) + 1);
   }
@@ -83,4 +85,28 @@ export async function listRecentVisitEvents(
   }
 
   return (data ?? []) as SiteVisitEvent[];
+}
+
+/** Outside visitors only — excludes traffic that came from /admin. */
+export async function listOutsideVisitEvents(
+  limit = 100,
+): Promise<SiteVisitEvent[]> {
+  if (!isSupabaseConfigured()) return [];
+
+  const supabase = createServiceClient();
+  // Fetch extra rows so admin-origin noise can be filtered client-side.
+  const { data, error } = await supabase
+    .from("site_visit_events")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(Math.min(limit * 4, 400));
+
+  if (error) {
+    console.error("[listOutsideVisitEvents]", error);
+    return [];
+  }
+
+  return ((data ?? []) as SiteVisitEvent[])
+    .filter((event) => isOutsideVisitorEvent(event))
+    .slice(0, limit);
 }
