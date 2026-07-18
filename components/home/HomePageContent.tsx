@@ -12,6 +12,7 @@ type HomePageContentProps = {
   heroFrame?: HeroFrame;
   heroLayout?: HeroLayout;
   heroSlides?: readonly HeroSlide[];
+  heroSlideIntervalMs?: number;
   copy?: ResolvedSiteCopy;
 };
 
@@ -19,6 +20,7 @@ export function HomePageContent({
   heroFrame = "bleed",
   heroLayout = "immersive",
   heroSlides = [],
+  heroSlideIntervalMs = HOME_HERO_SLIDE_MS,
   copy,
 }: HomePageContentProps) {
   const heroHome = copy?.heroHome ?? {
@@ -44,7 +46,7 @@ export function HomePageContent({
       primaryCta={heroHome.primaryCta}
       secondaryCta={heroHome.secondaryCta}
       showSlideControls={slides.length > 1}
-      slideIntervalMs={HOME_HERO_SLIDE_MS}
+      slideIntervalMs={heroSlideIntervalMs}
       fadeMs={HOME_HERO_FADE_MS}
     />
   );

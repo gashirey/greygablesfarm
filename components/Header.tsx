@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type CSSProperties } from "react";
+import { InstagramLink } from "@/components/InstagramLink";
 import { useSiteConfig } from "@/components/SiteConfigProvider";
 import {
   FOUND_BRAND_COLOR,
@@ -122,7 +123,16 @@ export function Header() {
           })}
         </nav>
 
-        <div className={`relative shrink-0 lg:hidden ${overlay ? "ml-auto" : ""}`}>
+        <div
+          className={`relative flex shrink-0 items-center gap-2 lg:hidden ${overlay ? "ml-auto" : ""}`}
+        >
+          <InstagramLink
+            className={`inline-flex p-1.5 transition-opacity hover:opacity-80 ${
+              overlay && !scrolled ? "text-white" : "text-black"
+            }`}
+            iconClassName="h-5 w-5"
+            label="Follow Grey Gables on Instagram"
+          />
           <button
             type="button"
             className="flex flex-col gap-1 p-1.5"

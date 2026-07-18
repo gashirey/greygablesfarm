@@ -87,6 +87,10 @@ Run `supabase/migrations/019_artful_lodger_campaign.sql` and `021_al_campaign_fo
 
 Run `supabase/migrations/020_media_asset_dimensions.sql` to store `width` / `height` on `media_assets` (landscape / portrait filter on **/admin/media**). New uploads save sizes automatically; existing images are scanned when you open a shoot.
 
+## Homepage slideshow speed
+
+Run `supabase/migrations/022_hero_slide_interval.sql` to add `hero_slide_interval_ms` on `site_settings`. Adjust in **Admin → Site editor → Appearance** (Homepage hero layout).
+
 ## 5. Segmentation examples
 
 ```sql

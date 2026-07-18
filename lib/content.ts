@@ -110,6 +110,7 @@ export const subscribe = {
 
 export const social = {
   instagram: "https://www.instagram.com/grey.gables.flowerfarm/" as string,
+  instagramHandle: "@grey.gables.flowerfarm",
 } as const;
 
 export const ordering = {

@@ -2,8 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { InstagramLink } from "@/components/InstagramLink";
 import { SubscribeBlock } from "@/components/SubscribeBlock";
-import { site, social } from "@/lib/content";
+import { site } from "@/lib/content";
 import { useSiteConfig } from "@/components/SiteConfigProvider";
 import { googleMapsUrl } from "@/lib/location";
 export function Footer() {
@@ -65,16 +66,11 @@ export function Footer() {
             >
               {site.email}
             </a>
-            {social.instagram ? (
-              <a
-                href={social.instagram}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="type-footer-link mt-2 block text-salmon-dark transition-colors hover:text-salmon"
-              >
-                Instagram
-              </a>
-            ) : null}
+            <InstagramLink
+              className="mt-3 inline-flex text-salmon-dark transition-colors hover:text-salmon"
+              iconClassName="h-6 w-6"
+              label="Follow Grey Gables on Instagram"
+            />
           </div>
         </div>
 

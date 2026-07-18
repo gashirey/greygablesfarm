@@ -209,6 +209,29 @@ export function SiteAppearancePanel() {
               <option value="inset">Inset (bordered)</option>
             </select>
           </label>
+          <label className="text-sm sm:col-span-2">
+            <span className="font-medium text-bark">Slideshow speed</span>
+            <select
+              className="input mt-1 w-full max-w-xs"
+              value={String(settings.hero_slide_interval_ms ?? 14000)}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  hero_slide_interval_ms: Number(e.target.value),
+                })
+              }
+            >
+              <option value="5000">5 seconds</option>
+              <option value="8000">8 seconds</option>
+              <option value="10000">10 seconds</option>
+              <option value="14000">14 seconds (default)</option>
+              <option value="20000">20 seconds</option>
+              <option value="30000">30 seconds</option>
+            </select>
+            <span className="mt-1 block text-xs text-stone">
+              How long each hero photo stays before fading to the next.
+            </span>
+          </label>
         </div>
         <button
           type="button"
@@ -218,6 +241,8 @@ export function SiteAppearancePanel() {
             void save({
               hero_layout: settings.hero_layout,
               hero_frame: settings.hero_frame,
+              hero_slide_interval_ms:
+                settings.hero_slide_interval_ms ?? 14000,
             })
           }
         >

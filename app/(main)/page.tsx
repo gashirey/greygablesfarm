@@ -22,6 +22,7 @@ export default async function HomePage() {
       heroFrame={config.theme.heroFrame}
       heroLayout={config.theme.heroLayout}
       heroSlides={heroSlides}
+      heroSlideIntervalMs={config.theme.heroSlideIntervalMs}
       copy={config.copy}
     />
   );
