@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { ADMIN_COOKIE, verifyAdminSessionToken } from "@/lib/admin/auth";
 import { isCampaignPathSegment } from "@/lib/campaigns/slug";
 import { geoFromRequest } from "@/lib/tracking/geo";
 import {
@@ -40,8 +38,6 @@ export async function POST(request: Request) {
   const pathname = body.pathname?.trim() ?? "";
   const search = body.search ?? "";
   const referrer = body.referrer ?? null;
-  const token = (await cookies()).get(ADMIN_COOKIE)?.value;
-  const hasAdminSession = await verifyAdminSessionToken(token);
 
   if (
     !pathname ||
@@ -49,7 +45,6 @@ export async function POST(request: Request) {
       pathname,
       search,
       referrer,
-      hasAdminSession,
     })
   ) {
     return new NextResponse(null, { status: 204 });

@@ -114,9 +114,8 @@ export function OutsideVisitsPanel() {
       <div>
         <h1 className="font-serif text-2xl text-bark">Outside visits</h1>
         <p className="mt-1 max-w-2xl text-sm text-stone">
-          Public traffic only. Visits from the admin UI and while you are signed
-          into admin are not counted here. Location is approximate (IP / Vercel)
-          and fills in on production for QR scans and page visits.
+          Public traffic only. Clicks that come from the admin UI are excluded.
+          Location is approximate (IP / Vercel) and fills in on production.
         </p>
         {foundToday > 0 ? (
           <p className="mt-2 text-sm text-bark">

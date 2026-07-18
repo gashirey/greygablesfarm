@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { ADMIN_COOKIE, verifyAdminSessionToken } from "@/lib/admin/auth";
 import { getCampaignBySlug } from "@/lib/campaigns/queries";
 import {
   isCampaignSlug,
@@ -29,12 +28,9 @@ export async function GET(request: NextRequest, { params }: Params) {
   const searchParams = searchParamsFromUrl(request.nextUrl.search);
   const referrer = request.headers.get("referer");
   const userAgent = request.headers.get("user-agent");
-  const hasAdminSession = await verifyAdminSessionToken(
-    request.cookies.get(ADMIN_COOKIE)?.value,
-  );
 
-  // Don't count admin preview / test scans as outside visits.
-  if (!hasAdminSession && !isAdminOriginReferrer(referrer)) {
+  // Don't count clicks that came from the admin UI (View site / preview).
+  if (!isAdminOriginReferrer(referrer)) {
     const geo = geoFromRequest(request);
     await logSiteVisit({
       campaignId: campaign?.id ?? null,

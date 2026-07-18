@@ -38,26 +38,23 @@ export function isAdminOriginReferrer(referrer: string | null | undefined): bool
   }
 }
 
-export function shouldTrackPublicVisit(pathname: string, search: string): boolean {
+export function shouldTrackPublicVisit(pathname: string, _search: string): boolean {
   if (pathname.startsWith("/api")) return false;
   if (pathname.startsWith("/admin")) return false;
   if (pathname.startsWith("/_next")) return false;
-  if (pathname === "/") {
-    return Boolean(search && search !== "?");
-  }
   return true;
 }
 
 /**
- * Outside-visitor gate: skip admin UI traffic and logged-in admin sessions.
+ * Outside-visitor gate: skip only traffic that navigated from the admin UI.
+ * Being signed into admin in the same browser must not suppress public visits
+ * (otherwise phone/computer tests while logged in never appear).
  */
 export function shouldLogOutsideVisitor(input: {
   pathname: string;
   search: string;
   referrer?: string | null;
-  hasAdminSession?: boolean;
 }): boolean {
-  if (input.hasAdminSession) return false;
   if (isAdminOriginReferrer(input.referrer)) return false;
   return shouldTrackPublicVisit(input.pathname, input.search);
 }

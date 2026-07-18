@@ -10,17 +10,13 @@ async function hasAdminSession(request: NextRequest): Promise<boolean> {
   return verifyAdminSessionToken(token);
 }
 
-function shouldEnqueueVisitTracking(
-  request: NextRequest,
-  adminSession: boolean,
-): boolean {
+function shouldEnqueueVisitTracking(request: NextRequest): boolean {
   const { pathname, search } = request.nextUrl;
   if (isCampaignPathSegment(pathname)) return false;
   return shouldLogOutsideVisitor({
     pathname,
     search,
     referrer: request.headers.get("referer"),
-    hasAdminSession: adminSession,
   });
 }
 
@@ -60,7 +56,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  if (shouldEnqueueVisitTracking(request, adminSession)) {
+  if (shouldEnqueueVisitTracking(request)) {
     trackVisit(request);
   }
 
