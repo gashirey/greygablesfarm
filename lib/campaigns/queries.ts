@@ -46,7 +46,7 @@ export async function listCampaignsWithStats(): Promise<CampaignWithStats[]> {
 
   const { data: counts, error: countError } = await supabase
     .from("site_visit_events")
-    .select("campaign_id, referrer")
+    .select("campaign_id, referrer, pathname, user_agent, is_bot")
     .eq("visit_type", "campaign")
     .not("campaign_id", "is", null);
 
@@ -87,19 +87,19 @@ export async function listRecentVisitEvents(
   return (data ?? []) as SiteVisitEvent[];
 }
 
-/** Outside visitors only — excludes traffic that came from /admin. */
+/** Outside visitors only — excludes admin-origin, bots, and scanner noise. */
 export async function listOutsideVisitEvents(
   limit = 100,
 ): Promise<SiteVisitEvent[]> {
   if (!isSupabaseConfigured()) return [];
 
   const supabase = createServiceClient();
-  // Fetch extra rows so admin-origin noise can be filtered client-side.
+  // Fetch extra rows so admin/bot/noise can be filtered client-side.
   const { data, error } = await supabase
     .from("site_visit_events")
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(Math.min(limit * 4, 400));
+    .limit(Math.min(limit * 6, 600));
 
   if (error) {
     console.error("[listOutsideVisitEvents]", error);

@@ -1,50 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { SiteVisitEvent } from "@/lib/campaigns/types";
-import { formatVisitGeo } from "@/lib/tracking/geo";
-
-function formatWhen(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function formatParams(params: Record<string, string> | null): string {
-  if (!params || Object.keys(params).length === 0) return "—";
-  return Object.entries(params)
-    .map(([k, v]) => `${k}=${v}`)
-    .join(", ");
-}
-
-function referrerPathname(referrer: string | null): string | null {
-  if (!referrer) return null;
-  try {
-    return new URL(referrer).pathname;
-  } catch {
-    return null;
-  }
-}
-
-function formatReferrer(referrer: string | null): string {
-  if (!referrer) return "direct / unknown";
-  try {
-    const url = new URL(referrer);
-    return `${url.host}${url.pathname}${url.search}`;
-  } catch {
-    return referrer;
-  }
-}
-
-/** Visited after landing on /found (QR / Artful Lodger funnel). */
-function isFromFound(visit: SiteVisitEvent): boolean {
-  const refPath = referrerPathname(visit.referrer);
-  if (refPath === "/found" || refPath?.startsWith("/found/")) return true;
-  return false;
-}
+import {
+  deviceLabel,
+  formatWhenFriendly,
+  locationLabel,
+  pageLabel,
+  sourceLabel,
+} from "@/lib/tracking/present";
 
 function isToday(iso: string): boolean {
   const d = new Date(iso);
@@ -56,190 +20,381 @@ function isToday(iso: string): boolean {
   );
 }
 
-function regionLabel(visit: SiteVisitEvent): string {
-  const city = visit.geo_city?.trim();
-  const region = visit.geo_region?.trim();
-  if (city && region) return `${city}, ${region}`;
-  if (city) return city;
-  if (region) return region;
-  if (visit.geo_country?.trim()) return visit.geo_country.trim();
-  return "Unknown location";
+/** Stable key for unique-visitor estimates (cookie id, else UA+geo fallback). */
+function visitorKey(visit: SiteVisitEvent): string {
+  const id = visit.visitor_id?.trim();
+  if (id) return `v:${id}`;
+  const ua = (visit.user_agent ?? "").slice(0, 120);
+  const geo = [
+    visit.geo_city ?? "",
+    visit.geo_region ?? "",
+    visit.geo_country ?? "",
+  ].join("|");
+  return `f:${ua}|${geo}`;
 }
+
+function countByKey(
+  visits: SiteVisitEvent[],
+  keyFn: (v: SiteVisitEvent) => string,
+): Array<[string, number]> {
+  const map = new Map<string, Set<string>>();
+  for (const visit of visits) {
+    const key = keyFn(visit);
+    const set = map.get(key) ?? new Set<string>();
+    set.add(visitorKey(visit));
+    map.set(key, set);
+  }
+  return [...map.entries()]
+    .map(([label, set]): [string, number] => [label, set.size])
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+}
+
+const POLL_MS = 12_000;
 
 export function OutsideVisitsPanel() {
   const [visits, setVisits] = useState<SiteVisitEvent[]>([]);
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [showTechnical, setShowTechnical] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const res = await fetch("/api/admin/visits", { cache: "no-store" });
-    const data = await res.json();
-    if (!res.ok) {
-      setLoadError(data.error ?? "Could not load visits.");
-      setVisits([]);
-    } else {
-      setLoadError("");
-      setVisits(data.visits ?? []);
+  const load = useCallback(async (opts?: { quiet?: boolean }) => {
+    const quiet = opts?.quiet ?? false;
+    if (!quiet) setLoading(true);
+    try {
+      const res = await fetch("/api/admin/visits", { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) {
+        setLoadError(data.error ?? "Could not load traffic.");
+        if (!quiet) setVisits([]);
+      } else {
+        setLoadError("");
+        setVisits(data.visits ?? []);
+      }
+    } catch {
+      if (!quiet) {
+        setLoadError("Could not load traffic.");
+        setVisits([]);
+      }
+    } finally {
+      if (!quiet) setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
     void load();
+
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void load({ quiet: true });
+      }
+    }, POLL_MS);
+
+    const onVisibleOrFocus = () => {
+      if (document.visibilityState === "visible") {
+        void load({ quiet: true });
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibleOrFocus);
+    window.addEventListener("focus", onVisibleOrFocus);
+
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisibleOrFocus);
+      window.removeEventListener("focus", onVisibleOrFocus);
+    };
   }, [load]);
 
-  const foundToday = visits.filter(
-    (v) => isFromFound(v) && isToday(v.created_at),
-  ).length;
+  const todayVisits = useMemo(
+    () => visits.filter((v) => isToday(v.created_at)),
+    [visits],
+  );
 
-  const regionCounts = new Map<string, number>();
-  for (const visit of visits) {
-    if (!isToday(visit.created_at)) continue;
-    const hasGeo = Boolean(
-      visit.geo_city?.trim() ||
-        visit.geo_region?.trim() ||
-        visit.geo_country?.trim(),
+  const uniqueToday = useMemo(() => {
+    return new Set(todayVisits.map(visitorKey)).size;
+  }, [todayVisits]);
+
+  const pageviewsToday = todayVisits.length;
+
+  const qrToday = useMemo(() => {
+    const keys = new Set<string>();
+    for (const visit of todayVisits) {
+      if (visit.visit_type === "campaign" || visit.slug) {
+        keys.add(visitorKey(visit));
+      }
+    }
+    return keys.size;
+  }, [todayVisits]);
+
+  const sourcesToday = useMemo(
+    () => countByKey(todayVisits, sourceLabel).slice(0, 8),
+    [todayVisits],
+  );
+
+  const pagesToday = useMemo(
+    () => countByKey(todayVisits, (v) => pageLabel(v.pathname)).slice(0, 8),
+    [todayVisits],
+  );
+
+  const regionsToday = useMemo(() => {
+    const withGeo = todayVisits.filter(
+      (v) =>
+        v.geo_city?.trim() ||
+        v.geo_region?.trim() ||
+        v.geo_country?.trim() ||
+        v.visit_type === "campaign",
     );
-    if (!hasGeo && visit.visit_type !== "campaign") continue;
-    const key = regionLabel(visit);
-    regionCounts.set(key, (regionCounts.get(key) ?? 0) + 1);
-  }
-  const visitsTodayByRegion = [...regionCounts.entries()].sort(
-    (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+    return countByKey(withGeo, locationLabel).slice(0, 8);
+  }, [todayVisits]);
+
+  const devicesToday = useMemo(
+    () => countByKey(todayVisits, deviceLabel),
+    [todayVisits],
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <h1 className="font-serif text-2xl text-bark">Outside visits</h1>
+        <h1 className="font-serif text-2xl text-bark">Site traffic</h1>
         <p className="mt-1 max-w-2xl text-sm text-stone">
-          Public traffic only. Clicks that come from the admin UI are excluded.
-          Location is approximate (IP / Vercel) and fills in on production.
+          A simple picture of who is opening your public website. We leave out
+          your admin clicks, automated bots, and local testing. Location is a
+          rough guess from the visitor’s network — VPNs can show big cities far
+          from home.
         </p>
-        {foundToday > 0 ? (
-          <p className="mt-2 text-sm text-bark">
-            {foundToday} visit{foundToday === 1 ? "" : "s"} today came from{" "}
-            <span className="font-mono text-xs">/found</span> (scan funnel).
-          </p>
-        ) : null}
-        {visitsTodayByRegion.length > 0 ? (
-          <div className="mt-3 max-w-xl border border-parchment bg-white p-3">
-            <p className="text-xs font-medium uppercase tracking-[0.12em] text-stone">
-              Today by region
-            </p>
-            <ul className="mt-2 space-y-1 text-sm text-bark">
-              {visitsTodayByRegion.map(([label, count]) => (
-                <li key={label} className="flex justify-between gap-4">
-                  <span>{label}</span>
-                  <span className="tabular-nums text-stone">{count}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
       </div>
 
-      {loadError ? (
-        <p className="text-sm text-bark">{loadError}</p>
-      ) : null}
+      {loadError ? <p className="text-sm text-bark">{loadError}</p> : null}
 
       {loading ? (
         <p className="text-sm text-stone">Loading…</p>
-      ) : visits.length === 0 ? (
-        <p className="text-sm text-stone">No outside visits logged yet.</p>
       ) : (
-        <div className="overflow-x-auto border border-parchment bg-white">
-          <table className="w-full min-w-[52rem] table-fixed text-left text-sm">
-            <colgroup>
-              <col className="w-[7.5rem]" />
-              <col className="w-[4.5rem]" />
-              <col className="w-[6.5rem]" />
-              <col className="w-[9rem]" />
-              <col />
-              <col className="w-[5.5rem]" />
-              <col className="w-[5.5rem]" />
-              <col className="w-[3.5rem]" />
-            </colgroup>
-            <thead className="border-b border-parchment text-xs text-stone">
-              <tr>
-                <th className="px-3 py-2 font-medium">When</th>
-                <th className="px-3 py-2 font-medium">Type</th>
-                <th className="px-3 py-2 font-medium">Path</th>
-                <th className="px-3 py-2 font-medium">Location</th>
-                <th className="px-3 py-2 font-medium">Referrer</th>
-                <th className="px-3 py-2 font-medium">Flag</th>
-                <th className="px-3 py-2 font-medium">Params</th>
-                <th className="px-3 py-2 font-medium">Slug</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-parchment">
-              {visits.map((visit) => {
-                const fromFound = isFromFound(visit);
-                const location = formatVisitGeo(visit);
-                return (
-                  <tr
-                    key={visit.id}
-                    className={fromFound ? "bg-cream/80" : undefined}
-                  >
-                    <td className="px-3 py-2 whitespace-nowrap text-stone">
-                      {formatWhen(visit.created_at)}
-                    </td>
-                    <td className="px-3 py-2 text-stone">{visit.visit_type}</td>
-                    <td
-                      className="truncate px-3 py-2 font-mono text-xs text-bark"
-                      title={visit.pathname}
-                    >
-                      {visit.pathname}
-                    </td>
-                    <td
-                      className="truncate px-3 py-2 text-bark"
-                      title={location}
-                    >
-                      {location}
-                    </td>
-                    <td
-                      className="truncate px-3 py-2 text-stone"
-                      title={formatReferrer(visit.referrer)}
-                    >
-                      {formatReferrer(visit.referrer)}
-                    </td>
-                    <td className="px-3 py-2">
-                      {fromFound ? (
-                        <span
-                          className="chip inline-block whitespace-nowrap bg-salmon/20 text-bark"
-                          title="Came from /found landing (scan funnel)"
-                        >
-                          from /found
-                        </span>
-                      ) : (
-                        <span className="text-stone">—</span>
-                      )}
-                    </td>
-                    <td
-                      className="truncate px-3 py-2 text-stone"
-                      title={formatParams(visit.search_params)}
-                    >
-                      {formatParams(visit.search_params)}
-                    </td>
-                    <td className="px-3 py-2 text-stone">
-                      {visit.slug ? `/${visit.slug}` : "—"}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+        <>
+          <section className="grid gap-3 sm:grid-cols-3">
+            <StatCard
+              label="People today"
+              value={uniqueToday}
+              hint="Distinct browsers we recognize"
+            />
+            <StatCard
+              label="Pages opened today"
+              value={pageviewsToday}
+              hint="Every page load counts"
+            />
+            <StatCard
+              label="QR / short-link today"
+              value={qrToday}
+              hint="Scanned a printed code or short URL"
+            />
+          </section>
 
-      <button
-        type="button"
-        className="btn btn-secondary text-sm"
-        onClick={() => void load()}
-      >
-        Refresh
-      </button>
+          {pageviewsToday === 0 ? (
+            <p className="text-sm text-stone">
+              No public visits logged yet today. When someone opens the live site
+              or scans a QR code, it will show up here automatically.
+            </p>
+          ) : (
+            <div className="grid gap-6 lg:grid-cols-2">
+              <SummaryList
+                title="Where people came from"
+                empty="No source info yet."
+                rows={sourcesToday}
+                footnote="This is the previous site or app — or a QR scan — before they landed on your page."
+              />
+              <SummaryList
+                title="Pages they opened"
+                empty="No pages yet."
+                rows={pagesToday}
+              />
+              <SummaryList
+                title="Where they seem to be"
+                empty="Location unknown for today’s visits."
+                rows={regionsToday}
+                footnote="Approximate only. Helpful for “are people nearby?” not exact addresses."
+              />
+              <SummaryList
+                title="Phone vs computer"
+                empty="No device info yet."
+                rows={devicesToday}
+              />
+            </div>
+          )}
+
+          <section>
+            <h2 className="font-serif text-lg text-bark">Recent activity</h2>
+            <p className="mt-1 text-sm text-stone">
+              Newest first. Updates every few seconds while this page is open.
+            </p>
+
+            {visits.length === 0 ? (
+              <p className="mt-3 text-sm text-stone">No visits logged yet.</p>
+            ) : (
+              <ul className="mt-4 divide-y divide-parchment border border-parchment bg-white">
+                {visits.slice(0, 40).map((visit) => (
+                  <li key={visit.id} className="px-4 py-3">
+                    <p className="text-sm text-bark">
+                      <span className="tabular-nums text-stone">
+                        {formatWhenFriendly(visit.created_at)}
+                      </span>
+                      <span className="text-stone"> · </span>
+                      <span className="font-medium">
+                        {pageLabel(visit.pathname)}
+                      </span>
+                    </p>
+                    <p className="mt-1 text-sm text-stone">
+                      {sourceLabel(visit)}
+                      <span className="text-stone/80"> · </span>
+                      {locationLabel(visit)}
+                      <span className="text-stone/80"> · </span>
+                      {deviceLabel(visit)}
+                      {visit.browser || visit.os ? (
+                        <>
+                          <span className="text-stone/80"> · </span>
+                          {[visit.browser, visit.os].filter(Boolean).join(" on ")}
+                        </>
+                      ) : null}
+                    </p>
+                    {visit.attributed_campaign_slug ? (
+                      <p className="mt-1 text-xs text-stone">
+                        Earlier QR / short link: /{visit.attributed_campaign_slug}
+                      </p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              className="btn btn-secondary text-sm"
+              onClick={() => void load()}
+            >
+              Update now
+            </button>
+            <button
+              type="button"
+              className="text-sm text-stone underline underline-offset-2"
+              onClick={() => setShowTechnical((v) => !v)}
+            >
+              {showTechnical ? "Hide technical details" : "Show technical details"}
+            </button>
+          </div>
+
+          {showTechnical ? (
+            <section className="border border-parchment bg-white p-4">
+              <h2 className="text-sm font-medium text-bark">Technical details</h2>
+              <p className="mt-1 text-xs text-stone">
+                Stored for support and future reports — most owners can ignore
+                this.
+              </p>
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full min-w-[48rem] text-left text-xs">
+                  <thead className="border-b border-parchment text-stone">
+                    <tr>
+                      <th className="px-2 py-1.5 font-medium">When</th>
+                      <th className="px-2 py-1.5 font-medium">Path</th>
+                      <th className="px-2 py-1.5 font-medium">Type</th>
+                      <th className="px-2 py-1.5 font-medium">Referrer URL</th>
+                      <th className="px-2 py-1.5 font-medium">UTM</th>
+                      <th className="px-2 py-1.5 font-medium">Visitor</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-parchment">
+                    {visits.slice(0, 40).map((visit) => (
+                      <tr key={`tech-${visit.id}`}>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-stone">
+                          {formatWhenFriendly(visit.created_at)}
+                        </td>
+                        <td className="px-2 py-1.5 font-mono text-bark">
+                          {visit.pathname}
+                        </td>
+                        <td className="px-2 py-1.5 text-stone">
+                          {visit.visit_type}
+                        </td>
+                        <td
+                          className="max-w-[12rem] truncate px-2 py-1.5 text-stone"
+                          title={visit.referrer ?? undefined}
+                        >
+                          {visit.referrer ?? "—"}
+                        </td>
+                        <td className="px-2 py-1.5 text-stone">
+                          {[
+                            visit.utm_source,
+                            visit.utm_medium,
+                            visit.utm_campaign,
+                          ]
+                            .filter(Boolean)
+                            .join(" / ") || "—"}
+                        </td>
+                        <td
+                          className="max-w-[8rem] truncate px-2 py-1.5 font-mono text-stone"
+                          title={visit.visitor_id ?? undefined}
+                        >
+                          {visit.visitor_id
+                            ? `${visit.visitor_id.slice(0, 8)}…`
+                            : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: number;
+  hint: string;
+}) {
+  return (
+    <div className="border border-parchment bg-white px-4 py-3">
+      <p className="text-xs font-medium uppercase tracking-[0.12em] text-stone">
+        {label}
+      </p>
+      <p className="mt-1 font-serif text-3xl tabular-nums text-bark">{value}</p>
+      <p className="mt-1 text-xs text-stone">{hint}</p>
+    </div>
+  );
+}
+
+function SummaryList({
+  title,
+  rows,
+  empty,
+  footnote,
+}: {
+  title: string;
+  rows: [string, number][];
+  empty: string;
+  footnote?: string;
+}) {
+  return (
+    <div className="border border-parchment bg-white p-4">
+      <h2 className="text-sm font-medium text-bark">{title}</h2>
+      {footnote ? <p className="mt-1 text-xs text-stone">{footnote}</p> : null}
+      {rows.length === 0 ? (
+        <p className="mt-3 text-sm text-stone">{empty}</p>
+      ) : (
+        <ul className="mt-3 space-y-1.5 text-sm text-bark">
+          {rows.map(([label, count]) => (
+            <li key={label} className="flex justify-between gap-4">
+              <span>{label}</span>
+              <span className="tabular-nums text-stone">{count}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

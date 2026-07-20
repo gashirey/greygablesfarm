@@ -10,7 +10,8 @@ const links = [
   { href: "/admin/social", label: "Social" },
   { href: "/admin/site", label: "Site editor" },
   { href: "/admin/campaigns", label: "Campaigns" },
-  { href: "/admin/visits", label: "Visits" },
+  { href: "/admin/events", label: "Events" },
+  { href: "/admin/visits", label: "Traffic" },
   { href: "/admin/inquiries", label: "Inquiries" },
   { href: "/", label: "View site" },
 ];

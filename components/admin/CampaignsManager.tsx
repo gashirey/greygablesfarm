@@ -3,7 +3,13 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { CampaignWithStats, SiteVisitEvent } from "@/lib/campaigns/types";
-import { formatVisitGeo } from "@/lib/tracking/geo";
+import {
+  deviceLabel,
+  formatWhenFriendly,
+  locationLabel,
+  pageLabel,
+  sourceLabel,
+} from "@/lib/tracking/present";
 
 type FormState = {
   slug: string;
@@ -18,22 +24,6 @@ const emptyForm: FormState = {
   destination_url: "/",
   notes: "",
 };
-
-function formatWhen(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function formatParams(params: Record<string, string> | null): string {
-  if (!params || Object.keys(params).length === 0) return "—";
-  return Object.entries(params)
-    .map(([k, v]) => `${k}=${v}`)
-    .join(", ");
-}
 
 export function CampaignsManager() {
   const [campaigns, setCampaigns] = useState<CampaignWithStats[]>([]);
@@ -275,51 +265,36 @@ export function CampaignsManager() {
       </section>
 
       <section>
-        <h2 className="font-serif text-lg text-bark">Recent outside visits</h2>
+        <h2 className="font-serif text-lg text-bark">Recent traffic</h2>
         <p className="mt-1 text-sm text-stone">
-          Public traffic only (admin clicks excluded). Full list:{" "}
+          Public visitors only. Full picture:{" "}
           <Link href="/admin/visits" className="underline underline-offset-2">
-            Visits
+            Traffic
           </Link>
           .
         </p>
         {visits.length === 0 ? (
           <p className="mt-3 text-sm text-stone">No visits logged yet.</p>
         ) : (
-          <div className="mt-4 overflow-x-auto border border-parchment bg-white">
-            <table className="w-full min-w-[42rem] text-left text-sm">
-              <thead className="border-b border-parchment text-xs text-stone">
-                <tr>
-                  <th className="px-3 py-2 font-medium">When</th>
-                  <th className="px-3 py-2 font-medium">Type</th>
-                  <th className="px-3 py-2 font-medium">Path</th>
-                  <th className="px-3 py-2 font-medium">Location</th>
-                  <th className="px-3 py-2 font-medium">Params</th>
-                  <th className="px-3 py-2 font-medium">Slug</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-parchment">
-                {visits.map((visit) => (
-                  <tr key={visit.id}>
-                    <td className="px-3 py-2 whitespace-nowrap text-stone">
-                      {formatWhen(visit.created_at)}
-                    </td>
-                    <td className="px-3 py-2 text-stone">{visit.visit_type}</td>
-                    <td className="px-3 py-2 text-bark">{visit.pathname}</td>
-                    <td className="px-3 py-2 text-bark">
-                      {formatVisitGeo(visit)}
-                    </td>
-                    <td className="px-3 py-2 text-stone">
-                      {formatParams(visit.search_params)}
-                    </td>
-                    <td className="px-3 py-2 text-stone">
-                      {visit.slug ? `/${visit.slug}` : "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ul className="mt-4 divide-y divide-parchment border border-parchment bg-white">
+            {visits.slice(0, 12).map((visit) => (
+              <li key={visit.id} className="px-4 py-3 text-sm">
+                <p className="text-bark">
+                  <span className="tabular-nums text-stone">
+                    {formatWhenFriendly(visit.created_at)}
+                  </span>
+                  <span className="text-stone"> · </span>
+                  <span className="font-medium">
+                    {pageLabel(visit.pathname)}
+                  </span>
+                </p>
+                <p className="mt-1 text-stone">
+                  {sourceLabel(visit)} · {locationLabel(visit)} ·{" "}
+                  {deviceLabel(visit)}
+                </p>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
     </div>

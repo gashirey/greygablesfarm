@@ -7,6 +7,7 @@ export const RESERVED_CAMPAIGN_SLUGS = new Set([
   "available-now",
   "contact",
   "design-lab",
+  "events",
   "flowers",
   "found",
   "gallery",

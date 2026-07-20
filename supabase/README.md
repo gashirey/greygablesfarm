@@ -99,6 +99,18 @@ Run `supabase/migrations/020_media_asset_dimensions.sql` to store `width` / `hei
 
 Run `supabase/migrations/023_visit_geo.sql` to add `geo_city` / `geo_region` / `geo_country` on `site_visit_events`. Campaign short-link scans (`/al`, `/bc`, …) store Vercel IP geo when available. View on **Admin → Visits**.
 
+## Farm events
+
+Run `supabase/migrations/024_events.sql` for `farm_events`, dates, and segments. Manage in **Admin → Events**. Pick index + detail images from the media library before publishing. Public pages: `/events` and `/events/[slug]`. Turn on the **events** nav item under Site → Menu when ready.
+
+## Unique visitors + bot filter
+
+Run `supabase/migrations/025_visit_visitor_id.sql` to add `visitor_id` (first-party cookie) and `is_bot` on `site_visit_events`. **Admin → Traffic** then shows unique visitors by region and excludes crawler / scanner noise.
+
+## Richer visit log (device, UTM, language, timezone)
+
+Run `supabase/migrations/026_visit_enrichment.sql` to store device/browser/OS, Accept-Language, UTM tags, timezone/lat/lon, prior QR cookie, and request host on `site_visit_events`. **Admin → Traffic** shows a plain-language summary; technical columns stay in the database (and an optional “technical details” toggle).
+
 ## 5. Segmentation examples
 
 ```sql

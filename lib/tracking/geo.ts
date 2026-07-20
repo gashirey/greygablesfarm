@@ -8,11 +8,17 @@ export function geoFromRequest(request: Request): {
   geoCity: string | null;
   geoRegion: string | null;
   geoCountry: string | null;
+  geoTimezone: string | null;
+  geoLatitude: string | null;
+  geoLongitude: string | null;
 } {
   return {
     geoCity: decodeHeader(request.headers.get("x-vercel-ip-city")),
     geoRegion: decodeHeader(request.headers.get("x-vercel-ip-country-region")),
     geoCountry: decodeHeader(request.headers.get("x-vercel-ip-country")),
+    geoTimezone: decodeHeader(request.headers.get("x-vercel-ip-timezone")),
+    geoLatitude: decodeHeader(request.headers.get("x-vercel-ip-latitude")),
+    geoLongitude: decodeHeader(request.headers.get("x-vercel-ip-longitude")),
   };
 }
 

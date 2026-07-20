@@ -12,9 +12,16 @@ type TrackBody = {
   search?: string;
   referrer?: string | null;
   userAgent?: string | null;
+  acceptLanguage?: string | null;
   geoCity?: string | null;
   geoRegion?: string | null;
   geoCountry?: string | null;
+  geoTimezone?: string | null;
+  geoLatitude?: string | null;
+  geoLongitude?: string | null;
+  visitorId?: string | null;
+  attributedCampaignSlug?: string | null;
+  requestHost?: string | null;
 };
 
 function isAuthorized(request: Request): boolean {
@@ -38,6 +45,8 @@ export async function POST(request: Request) {
   const pathname = body.pathname?.trim() ?? "";
   const search = body.search ?? "";
   const referrer = body.referrer ?? null;
+  const userAgent = body.userAgent ?? null;
+  const host = body.requestHost ?? new URL(request.url).host;
 
   if (
     !pathname ||
@@ -45,6 +54,8 @@ export async function POST(request: Request) {
       pathname,
       search,
       referrer,
+      userAgent,
+      host,
     })
   ) {
     return new NextResponse(null, { status: 204 });
@@ -58,22 +69,24 @@ export async function POST(request: Request) {
   const visitType =
     searchParams && Object.keys(searchParams).length > 0 ? "query" : "path";
 
-  // Prefer geo forwarded from middleware (original visitor request).
-  // Fall back to headers on this request (empty for internal middleware fetch).
   const headerGeo = geoFromRequest(request);
-  const geoCity = body.geoCity ?? headerGeo.geoCity;
-  const geoRegion = body.geoRegion ?? headerGeo.geoRegion;
-  const geoCountry = body.geoCountry ?? headerGeo.geoCountry;
 
   await logSiteVisit({
     pathname,
     searchParams,
     referrer,
-    userAgent: body.userAgent ?? null,
+    userAgent,
     visitType,
-    geoCity,
-    geoRegion,
-    geoCountry,
+    geoCity: body.geoCity ?? headerGeo.geoCity,
+    geoRegion: body.geoRegion ?? headerGeo.geoRegion,
+    geoCountry: body.geoCountry ?? headerGeo.geoCountry,
+    geoTimezone: body.geoTimezone ?? headerGeo.geoTimezone,
+    geoLatitude: body.geoLatitude ?? headerGeo.geoLatitude,
+    geoLongitude: body.geoLongitude ?? headerGeo.geoLongitude,
+    visitorId: body.visitorId ?? null,
+    acceptLanguage: body.acceptLanguage ?? request.headers.get("accept-language"),
+    attributedCampaignSlug: body.attributedCampaignSlug ?? null,
+    requestHost: host,
   });
 
   return new NextResponse(null, { status: 204 });

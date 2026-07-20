@@ -6,6 +6,6 @@ export async function GET(request: Request) {
   const denied = await requireAdmin(request);
   if (denied) return denied;
 
-  const visits = await listOutsideVisitEvents(150);
+  const visits = await listOutsideVisitEvents(250);
   return NextResponse.json({ visits });
 }
