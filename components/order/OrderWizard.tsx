@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { computeOrderPricing } from "@/lib/order/pricing";
 import type {
   FulfillmentType,
@@ -27,6 +27,12 @@ type OrderWizardProps = {
 
 type Step = "vessel" | "fulfillment" | "details" | "review";
 
+type VesselLightbox = {
+  url: string;
+  alt: string;
+  name: string;
+};
+
 export function OrderWizard({
   product,
   vessels,
@@ -35,6 +41,9 @@ export function OrderWizard({
   const needsVessel = product.requiresVessel;
   const [step, setStep] = useState<Step>(needsVessel ? "vessel" : "fulfillment");
   const [vesselId, setVesselId] = useState<string | null>(null);
+  const [vesselLightbox, setVesselLightbox] = useState<VesselLightbox | null>(
+    null,
+  );
   const [fulfillmentType, setFulfillmentType] =
     useState<FulfillmentType>("delivery");
   const [fulfillmentDate, setFulfillmentDate] = useState("");
@@ -63,6 +72,20 @@ export function OrderWizard({
   const selectedDay = availability.find(
     (d) => d.fulfillmentDate === fulfillmentDate,
   );
+
+  useEffect(() => {
+    if (!vesselLightbox) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setVesselLightbox(null);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [vesselLightbox]);
 
   const pricing = useMemo(() => {
     try {
@@ -266,17 +289,32 @@ export function OrderWizard({
                         onChange={() => setVesselId(v.id)}
                         className="mt-2"
                       />
-                      <div className="relative h-20 w-16 shrink-0 overflow-hidden bg-parchment">
-                        {v.imageUrl ? (
+                      {v.imageUrl ? (
+                        <button
+                          type="button"
+                          className="relative h-20 w-16 shrink-0 overflow-hidden bg-parchment"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            setVesselLightbox({
+                              url: v.imageUrl,
+                              alt: v.imageAlt || v.name,
+                              name: v.name,
+                            });
+                          }}
+                          aria-label={`View larger photo of ${v.name}`}
+                        >
                           <Image
                             src={v.imageUrl}
-                            alt={v.imageAlt}
+                            alt=""
                             fill
                             className="object-cover"
                             sizes="64px"
                           />
-                        ) : null}
-                      </div>
+                        </button>
+                      ) : (
+                        <div className="relative h-20 w-16 shrink-0 bg-parchment" />
+                      )}
                       <div className="min-w-0 flex-1">
                         <p className="font-medium text-bark">{v.name}</p>
                         <p className="mt-1 text-xs leading-relaxed text-stone">
@@ -476,6 +514,22 @@ export function OrderWizard({
                   />
                 </label>
                 <label className="block text-sm">
+                  Card message{" "}
+                  <span className="font-normal text-stone">(optional)</span>
+                  <textarea
+                    className="input mt-1 w-full resize-y"
+                    rows={3}
+                    maxLength={250}
+                    value={cardMessage}
+                    onChange={(e) => setCardMessage(e.target.value)}
+                    placeholder="What should the card say?"
+                  />
+                  <span className="mt-1 block text-xs text-stone">
+                    Included with the arrangement for your recipient.{" "}
+                    {cardMessage.length}/250
+                  </span>
+                </label>
+                <label className="block text-sm">
                   Delivery instructions{" "}
                   <span className="font-normal text-stone">(optional)</span>
                   <textarea
@@ -483,6 +537,7 @@ export function OrderWizard({
                     rows={2}
                     value={deliveryInstructions}
                     onChange={(e) => setDeliveryInstructions(e.target.value)}
+                    placeholder="Gate code, leave with neighbor, etc."
                   />
                 </label>
               </div>
@@ -541,17 +596,23 @@ export function OrderWizard({
                 autoComplete="tel"
               />
             </label>
-            <label className="block text-sm">
-              Card message{" "}
-              <span className="font-normal text-stone">(optional)</span>
-              <textarea
-                className="input mt-1 w-full resize-y"
-                rows={3}
-                maxLength={250}
-                value={cardMessage}
-                onChange={(e) => setCardMessage(e.target.value)}
-              />
-            </label>
+            {fulfillmentType === "pickup" ? (
+              <label className="block text-sm">
+                Card message{" "}
+                <span className="font-normal text-stone">(optional)</span>
+                <textarea
+                  className="input mt-1 w-full resize-y"
+                  rows={3}
+                  maxLength={250}
+                  value={cardMessage}
+                  onChange={(e) => setCardMessage(e.target.value)}
+                  placeholder="What should the card say?"
+                />
+                <span className="mt-1 block text-xs text-stone">
+                  {cardMessage.length}/250
+                </span>
+              </label>
+            ) : null}
             <label className="block text-sm">
               Order notes{" "}
               <span className="font-normal text-stone">(optional)</span>
@@ -604,6 +665,14 @@ export function OrderWizard({
                   {zone ? ` · ${zone.name}` : null}
                 </dd>
               </div>
+              {cardMessage.trim() ? (
+                <div className="flex justify-between gap-4">
+                  <dt className="text-stone">Card message</dt>
+                  <dd className="max-w-[60%] text-right text-bark whitespace-pre-wrap">
+                    {cardMessage.trim()}
+                  </dd>
+                </div>
+              ) : null}
               {pricing.lines.map((line) => (
                 <div
                   key={`${line.kind}-${line.label}`}
@@ -652,6 +721,39 @@ export function OrderWizard({
           </p>
         ) : null}
       </div>
+
+      {vesselLightbox ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-bark/80 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={vesselLightbox.name}
+          onClick={() => setVesselLightbox(null)}
+        >
+          <button
+            type="button"
+            className="absolute right-4 top-4 btn border-cream/40 bg-transparent text-sm text-cream"
+            onClick={() => setVesselLightbox(null)}
+          >
+            Close
+          </button>
+          <div
+            className="relative h-[min(80vh,720px)] w-full max-w-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <Image
+              src={vesselLightbox.url}
+              alt={vesselLightbox.alt}
+              fill
+              className="object-contain"
+              sizes="90vw"
+            />
+          </div>
+          <p className="absolute bottom-6 left-0 right-0 text-center text-sm text-cream">
+            {vesselLightbox.name}
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }

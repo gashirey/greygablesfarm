@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Section } from "@/components/Section";
 import { OrderWizard } from "@/components/order/OrderWizard";
@@ -51,13 +50,6 @@ export default async function OrderProductPage({ params }: Props) {
         vessels={vessels}
         availability={availability}
       />
-      <p className="mx-auto mt-8 max-w-xl text-xs text-stone">
-        Prefer a custom arrangement?{" "}
-        <Link href="/send-flowers" className="underline underline-offset-2">
-          Send an inquiry
-        </Link>
-        .
-      </p>
     </Section>
   );
 }
