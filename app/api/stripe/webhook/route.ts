@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import { fulfillFlowerOrderPayment } from "@/lib/order/fulfill-payment";
+import {
+  STRIPE_KIND_BLOOMS,
+  STRIPE_KIND_FLOWER_ORDER,
+} from "@/lib/order/config";
 import { getStripeWebhookSecret } from "@/lib/stripe/config";
 import { getStripe } from "@/lib/stripe/server";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -32,26 +37,46 @@ export async function POST(request: Request) {
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
-    const bookingId =
-      session.metadata?.booking_id ?? session.client_reference_id ?? null;
+    const kind = session.metadata?.kind ?? null;
+    const paymentIntentId =
+      typeof session.payment_intent === "string"
+        ? session.payment_intent
+        : session.payment_intent?.id ?? null;
 
-    if (bookingId) {
-      const supabase = createServiceClient();
-      const { error } = await supabase
-        .from("blooms_bookings")
-        .update({
-          payment_status: "paid",
-          stripe_session_id: session.id,
-          stripe_payment_intent_id:
-            typeof session.payment_intent === "string"
-              ? session.payment_intent
-              : session.payment_intent?.id ?? null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", bookingId);
+    if (kind === STRIPE_KIND_FLOWER_ORDER) {
+      const orderId =
+        session.metadata?.order_id ?? session.client_reference_id ?? null;
+      if (orderId) {
+        await fulfillFlowerOrderPayment({
+          orderId,
+          stripeSessionId: session.id,
+          paymentIntentId,
+        });
+      }
+    } else {
+      // Blooms (legacy sessions without kind still use booking_id)
+      const bookingId =
+        session.metadata?.booking_id ??
+        (kind === STRIPE_KIND_BLOOMS ? session.client_reference_id : null) ??
+        session.client_reference_id ??
+        null;
 
-      if (error) {
-        console.error("[stripe webhook] update booking", error);
+      // Prefer blooms only when not a flower order
+      if (bookingId && kind !== STRIPE_KIND_FLOWER_ORDER) {
+        const supabase = createServiceClient();
+        const { error } = await supabase
+          .from("blooms_bookings")
+          .update({
+            payment_status: "paid",
+            stripe_session_id: session.id,
+            stripe_payment_intent_id: paymentIntentId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", bookingId);
+
+        if (error) {
+          console.error("[stripe webhook] update booking", error);
+        }
       }
     }
   }

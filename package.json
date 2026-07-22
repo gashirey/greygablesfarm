@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "seed:inventory": "node scripts/seed-mvp-availability.mjs",
-    "upload:shoot": "node scripts/bulk-upload-media.mjs"
+    "upload:shoot": "node scripts/bulk-upload-media.mjs",
+    "test:ss-pricing": "node scripts/test-ss-order-pricing.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.0",

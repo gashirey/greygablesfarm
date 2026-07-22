@@ -32,7 +32,7 @@ export const heroHome = {
   title: "Grown here. Arranged here. Delivered today.",
   subtitle:
     "Custom arrangements grown and designed on our Louisa County farm — delivered same-day across Central Virginia.",
-  primaryCta: { label: "Send flowers", href: "/flowers" },
+  primaryCta: { label: "Send flowers", href: "/order" },
   secondaryCta: { label: "See what's growing", href: "/available-now" },
 } as const;
 
@@ -136,7 +136,7 @@ export const ordering = {
 export const nav = [
   { label: "Send Flowers", href: "/send-flowers", cta: true },
   { label: "Home", href: "/" },
-  { label: "Flowers", href: "/flowers" },
+  { label: "Flowers", href: "/order" },
   { label: "Availability", href: "/available-now" },
   { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },

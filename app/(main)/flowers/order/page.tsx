@@ -1,59 +1,17 @@
-import type { Metadata } from "next";
-import Link from "next/link";
-import { Section } from "@/components/Section";
-import { FlowerOrderForm } from "@/components/flowers/FlowerOrderForm";
-import {
-  getFlowerTierBySlug,
-  getFlowersOgImage,
-  listFlowerTiers,
-} from "@/lib/flowers/queries";
-import { pageMetadata } from "@/lib/metadata";
-
-export const dynamic = "force-dynamic";
-
-export async function generateMetadata(): Promise<Metadata> {
-  const image = await getFlowersOgImage();
-  return pageMetadata({
-    title: "Order Flowers",
-    description:
-      "Order a Designer's Choice arrangement for same-day hand delivery across Charlottesville and Central Virginia.",
-    path: "/flowers/order",
-    image,
-  });
-}
+import { redirect } from "next/navigation";
 
 type Props = {
   searchParams: Promise<{ tier?: string }>;
 };
 
-export default async function FlowerOrderPage({ searchParams }: Props) {
+/** Legacy unpaid order form → self-service /order */
+export default async function FlowersOrderRedirectPage({ searchParams }: Props) {
   const { tier } = await searchParams;
-  const [selected, tiers] = await Promise.all([
-    getFlowerTierBySlug(tier),
-    listFlowerTiers(),
-  ]);
-
-  return (
-    <Section density="compact">
-      <div className="mb-8 max-w-xl">
-        <p className="type-eyebrow tracking-wide">
-          <Link
-            href="/flowers"
-            className="text-stone underline-offset-4 hover:text-salmon-dark hover:underline"
-          >
-            Designer&apos;s Choice
-          </Link>
-        </p>
-        <h1 className="type-page-title mt-2 leading-tight">Order for delivery</h1>
-        <p className="type-page-body mt-3 leading-relaxed">
-          Starting with {selected.name} ({selected.priceLabel}). You can change
-          the tier below. No payment is collected here — we&apos;ll confirm and
-          send a secure link.
-        </p>
-      </div>
-      <div className="max-w-xl">
-        <FlowerOrderForm initialTier={tier} tiers={tiers} />
-      </div>
-    </Section>
-  );
+  const slugMap: Record<string, string> = {
+    choice: "choice",
+    deluxe: "deluxe",
+    vessel: "curated-vessel",
+  };
+  const slug = tier ? slugMap[tier] : undefined;
+  redirect(slug ? `/order/${slug}` : "/order");
 }

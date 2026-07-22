@@ -22,12 +22,12 @@ export default function AdminDashboardPage() {
           </p>
         </Link>
         <Link
-          href="/admin/flowers"
+          href="/admin/order"
           className="border border-parchment bg-white p-5 hover:border-bark/30"
         >
-          <p className="font-medium text-bark">Flowers catalog</p>
+          <p className="font-medium text-bark">Self-service ordering</p>
           <p className="mt-1 text-sm text-stone">
-            Designer&apos;s Choice images, prices, descriptions, and offerings.
+            Products, vessels, zones, pickup capacity, and paid orders.
           </p>
         </Link>
         <Link

@@ -146,6 +146,7 @@ export async function POST(request: Request) {
         customer_email: email,
         client_reference_id: data.id,
         metadata: {
+          kind: "blooms",
           booking_id: data.id,
           package: bloomsPackage.packageName,
         },
