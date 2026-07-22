@@ -2,16 +2,25 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Section } from "@/components/Section";
 import { FlowerOrderForm } from "@/components/flowers/FlowerOrderForm";
-import { FLOWERS_OG_IMAGE, getFlowerTier } from "@/lib/flowers/tiers";
+import {
+  getFlowerTierBySlug,
+  getFlowersOgImage,
+  listFlowerTiers,
+} from "@/lib/flowers/queries";
 import { pageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = pageMetadata({
-  title: "Order Flowers",
-  description:
-    "Order a Designer's Choice arrangement for same-day hand delivery across Charlottesville and Central Virginia.",
-  path: "/flowers/order",
-  image: FLOWERS_OG_IMAGE,
-});
+export const dynamic = "force-dynamic";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const image = await getFlowersOgImage();
+  return pageMetadata({
+    title: "Order Flowers",
+    description:
+      "Order a Designer's Choice arrangement for same-day hand delivery across Charlottesville and Central Virginia.",
+    path: "/flowers/order",
+    image,
+  });
+}
 
 type Props = {
   searchParams: Promise<{ tier?: string }>;
@@ -19,7 +28,10 @@ type Props = {
 
 export default async function FlowerOrderPage({ searchParams }: Props) {
   const { tier } = await searchParams;
-  const selected = getFlowerTier(tier);
+  const [selected, tiers] = await Promise.all([
+    getFlowerTierBySlug(tier),
+    listFlowerTiers(),
+  ]);
 
   return (
     <Section density="compact">
@@ -40,7 +52,7 @@ export default async function FlowerOrderPage({ searchParams }: Props) {
         </p>
       </div>
       <div className="max-w-xl">
-        <FlowerOrderForm initialTier={tier} />
+        <FlowerOrderForm initialTier={tier} tiers={tiers} />
       </div>
     </Section>
   );

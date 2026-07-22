@@ -6,7 +6,7 @@ import {
   resolveDeliveryDateSelection,
   todayInDeliveryZone,
 } from "@/lib/flowers/delivery-date";
-import { getFlowerTier, isFlowerTierId } from "@/lib/flowers/tiers";
+import { resolveOrderTier } from "@/lib/flowers/queries";
 import type { FlowerOrderInsert } from "@/lib/flowers/types";
 import { createServiceClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -36,10 +36,10 @@ export async function POST(request: Request) {
   }
 
   const tierRaw = typeof payload.tier === "string" ? payload.tier.trim() : "";
-  if (!isFlowerTierId(tierRaw)) {
+  const tier = tierRaw ? await resolveOrderTier(tierRaw) : null;
+  if (!tier) {
     return NextResponse.json({ error: "Please select a tier." }, { status: 400 });
   }
-  const tier = getFlowerTier(tierRaw);
 
   const senderName =
     typeof payload.senderName === "string" ? payload.senderName.trim() : "";
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
   }
 
   const row: FlowerOrderInsert = {
-    tier: tier.id,
+    tier: tier.slug,
     price: tier.price,
     sender_name: senderName,
     sender_email: senderEmail.toLowerCase(),
@@ -148,7 +148,9 @@ export async function POST(request: Request) {
   }
 
   await sendFlowerOrderEmail({
-    tier: tier.id,
+    tier: tier.slug,
+    tierName: tier.name,
+    priceLabel: tier.priceLabel,
     senderName,
     senderEmail: senderEmail.toLowerCase(),
     senderPhone,

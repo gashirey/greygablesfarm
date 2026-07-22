@@ -1,17 +1,15 @@
 import { site } from "@/lib/content";
-import { getFlowerTier } from "@/lib/flowers/tiers";
 import type { FlowerOrderPayload } from "@/lib/flowers/types";
 
 function formatFlowerOrderEmail(payload: FlowerOrderPayload): {
   subject: string;
   text: string;
 } {
-  const tier = getFlowerTier(payload.tier);
-
   const lines = [
     "New Designer's Choice flower order",
     "",
-    `Tier: ${tier.name} (${tier.priceLabel})`,
+    `Tier: ${payload.tierName} (${payload.priceLabel})`,
+    `Slug: ${payload.tier}`,
     `Delivery date: ${payload.deliveryDate}`,
     "",
     "Sender",
@@ -31,7 +29,7 @@ function formatFlowerOrderEmail(payload: FlowerOrderPayload): {
   ].filter(Boolean);
 
   return {
-    subject: `Flower order — ${tier.name} — ${payload.recipientName} (${payload.deliveryDate})`,
+    subject: `Flower order — ${payload.tierName} — ${payload.recipientName} (${payload.deliveryDate})`,
     text: lines.join("\n"),
   };
 }

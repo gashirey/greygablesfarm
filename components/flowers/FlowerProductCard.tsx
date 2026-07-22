@@ -1,12 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
-import type { FLOWER_TIERS } from "@/lib/flowers/tiers";
-
-type Tier = (typeof FLOWER_TIERS)[number];
+import type { FlowerTier } from "@/lib/flowers/types";
 
 type FlowerProductCardProps = {
-  tier: Tier;
-  /** Tailwind order classes for mobile/desktop sort */
+  tier: FlowerTier;
   orderClassName: string;
 };
 
@@ -25,18 +22,22 @@ export function FlowerProductCard({
       }`}
     >
       <div className="image-frame relative aspect-[4/5]">
-        <Image
-          src={tier.imageSrc}
-          alt={tier.imageAlt}
-          fill
-          className="object-cover"
-          style={
-            "imageObjectPosition" in tier && tier.imageObjectPosition
-              ? { objectPosition: tier.imageObjectPosition }
-              : undefined
-          }
-          sizes="(max-width: 768px) 100vw, 33vw"
-        />
+        {tier.imageSrc ? (
+          <Image
+            src={tier.imageSrc}
+            alt={tier.imageAlt}
+            fill
+            className="object-cover"
+            style={
+              tier.imageObjectPosition
+                ? { objectPosition: tier.imageObjectPosition }
+                : undefined
+            }
+            sizes="(max-width: 768px) 100vw, 33vw"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-parchment" />
+        )}
         {tier.popular ? (
           <span className="chip absolute left-3 top-3 bg-bark text-cream">
             Most popular
@@ -60,7 +61,7 @@ export function FlowerProductCard({
           {tier.description}
         </p>
         <Link
-          href={`/flowers/order?tier=${tier.id}`}
+          href={`/flowers/order?tier=${tier.slug}`}
           className={`btn mt-6 w-full text-center ${
             emphasized
               ? "border-[var(--color-salmon-button)] bg-[var(--color-salmon-button)] text-white hover:border-[var(--color-salmon-button-hover)] hover:bg-[var(--color-salmon-button-hover)]"

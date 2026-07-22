@@ -1,25 +1,29 @@
 import type { Metadata } from "next";
 import { Section } from "@/components/Section";
 import { FlowerProductCard } from "@/components/flowers/FlowerProductCard";
-import { FLOWER_TIERS, FLOWERS_OG_IMAGE } from "@/lib/flowers/tiers";
+import {
+  flowerCardOrderClass,
+  getFlowersOgImage,
+  listFlowerTiers,
+} from "@/lib/flowers/queries";
 import { pageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = pageMetadata({
-  title: "Flower Delivery in Charlottesville & Central Virginia",
-  description:
-    "Designer's choice arrangements cut the morning of delivery. Same-day hand delivery across Charlottesville, Albemarle, Orange, Fluvanna, and Louisa.",
-  path: "/flowers",
-  image: FLOWERS_OG_IMAGE,
-});
+export const dynamic = "force-dynamic";
 
-const ORDER_CLASSES: Record<(typeof FLOWER_TIERS)[number]["id"], string> = {
-  // Mobile: $225 first; desktop LTR: $150 → $225 → $300
-  choice: "order-2 md:order-1",
-  deluxe: "order-1 md:order-2",
-  vessel: "order-3 md:order-3",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const image = await getFlowersOgImage();
+  return pageMetadata({
+    title: "Flower Delivery in Charlottesville & Central Virginia",
+    description:
+      "Designer's choice arrangements cut the morning of delivery. Same-day hand delivery across Charlottesville, Albemarle, Orange, Fluvanna, and Louisa.",
+    path: "/flowers",
+    image,
+  });
+}
 
-export default function FlowersPage() {
+export default async function FlowersPage() {
+  const tiers = await listFlowerTiers();
+
   return (
     <>
       <Section density="compact">
@@ -32,21 +36,17 @@ export default function FlowersPage() {
         </header>
 
         <div className="mt-10 grid gap-6 md:mt-14 md:grid-cols-3 md:gap-5 lg:gap-6">
-          {FLOWER_TIERS.map((tier) => (
+          {tiers.map((tier) => (
             <FlowerProductCard
-              key={tier.id}
+              key={tier.slug}
               tier={tier}
-              orderClassName={ORDER_CLASSES[tier.id]}
+              orderClassName={flowerCardOrderClass(tier, tiers)}
             />
           ))}
         </div>
       </Section>
 
-      <Section
-        title="How it works"
-        density="compact"
-        variant="muted"
-      >
+      <Section title="How it works" density="compact" variant="muted">
         <div className="max-w-2xl space-y-5">
           <p className="type-page-body leading-relaxed">
             Order by 10am for same-day delivery, Tuesday through Saturday.

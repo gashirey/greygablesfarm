@@ -9,12 +9,7 @@ import {
   todayInDeliveryZone,
   weekdayInDeliveryZone,
 } from "@/lib/flowers/delivery-date";
-import {
-  FLOWER_TIERS,
-  type FlowerTierId,
-  getFlowerTier,
-  isFlowerTierId,
-} from "@/lib/flowers/tiers";
+import type { FlowerTier } from "@/lib/flowers/types";
 
 const supabaseReady = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL);
 
@@ -27,14 +22,17 @@ const CARD_MESSAGE_MAX = 250;
 
 type FlowerOrderFormProps = {
   initialTier?: string | null;
+  tiers: FlowerTier[];
 };
 
-export function FlowerOrderForm({ initialTier }: FlowerOrderFormProps) {
-  const startingTier = isFlowerTierId(initialTier)
-    ? initialTier
-    : getFlowerTier("deluxe").id;
+export function FlowerOrderForm({ initialTier, tiers }: FlowerOrderFormProps) {
+  const defaultSlug =
+    tiers.find((t) => t.slug === initialTier)?.slug ??
+    tiers.find((t) => t.popular)?.slug ??
+    tiers[0]?.slug ??
+    "";
 
-  const [tier, setTier] = useState<FlowerTierId>(startingTier);
+  const [tier, setTier] = useState(defaultSlug);
   const [deliveryDate, setDeliveryDate] = useState("");
   const [cutoffNote, setCutoffNote] = useState(false);
   const [cardLen, setCardLen] = useState(0);
@@ -48,10 +46,14 @@ export function FlowerOrderForm({ initialTier }: FlowerOrderFormProps) {
   }, [minDate]);
 
   useEffect(() => {
-    if (isFlowerTierId(initialTier)) {
+    if (initialTier && tiers.some((t) => t.slug === initialTier)) {
       setTier(initialTier);
     }
-  }, [initialTier]);
+  }, [initialTier, tiers]);
+
+  function tierBySlug(slug: string) {
+    return tiers.find((t) => t.slug === slug) ?? tiers[0];
+  }
 
   function onDeliveryDateChange(value: string) {
     const resolved = resolveDeliveryDateSelection(value);
@@ -62,7 +64,6 @@ export function FlowerOrderForm({ initialTier }: FlowerOrderFormProps) {
     );
   }
 
-  /** Block Sundays/Mondays in the native picker where supported. */
   function isDateBlocked(iso: string) {
     const day = weekdayInDeliveryZone(iso);
     return day === 0 || day === 1;
@@ -70,7 +71,7 @@ export function FlowerOrderForm({ initialTier }: FlowerOrderFormProps) {
 
   function openMailto(form: HTMLFormElement) {
     const data = new FormData(form);
-    const selected = getFlowerTier(String(data.get("tier")));
+    const selected = tierBySlug(String(data.get("tier")));
     const lines = [
       `Tier: ${selected.name} (${selected.priceLabel})`,
       `Delivery date: ${data.get("deliveryDate")}`,
@@ -141,7 +142,7 @@ export function FlowerOrderForm({ initialTier }: FlowerOrderFormProps) {
       setStatus("success");
       setMessage(SUCCESS_MESSAGE);
       form.reset();
-      setTier(startingTier);
+      setTier(defaultSlug);
       setDeliveryDate(earliestDeliveryDate());
       setCutoffNote(false);
       setCardLen(0);
@@ -152,6 +153,14 @@ export function FlowerOrderForm({ initialTier }: FlowerOrderFormProps) {
   }
 
   const disabled = status === "loading" || status === "success";
+
+  if (!tiers.length) {
+    return (
+      <p className="text-sm text-stone">
+        No flower offerings are available right now. Please check back soon.
+      </p>
+    );
+  }
 
   if (status === "success") {
     return (
@@ -174,19 +183,19 @@ export function FlowerOrderForm({ initialTier }: FlowerOrderFormProps) {
         <fieldset>
           <legend className="text-sm font-medium text-bark">Tier</legend>
           <div className="mt-3 space-y-2">
-            {FLOWER_TIERS.map((t) => (
+            {tiers.map((t) => (
               <label
-                key={t.id}
+                key={t.slug}
                 className={`flex cursor-pointer items-start gap-3 border border-parchment px-3 py-3 ${
-                  tier === t.id ? "border-bark/40 bg-cream" : "bg-white"
+                  tier === t.slug ? "border-bark/40 bg-cream" : "bg-white"
                 }`}
               >
                 <input
                   type="radio"
                   name="tier"
-                  value={t.id}
-                  checked={tier === t.id}
-                  onChange={() => setTier(t.id)}
+                  value={t.slug}
+                  checked={tier === t.slug}
+                  onChange={() => setTier(t.slug)}
                   disabled={disabled}
                   className="mt-1"
                   required
@@ -210,7 +219,10 @@ export function FlowerOrderForm({ initialTier }: FlowerOrderFormProps) {
           <p className="text-sm font-medium text-bark">Your details</p>
           <div className="mt-4 grid gap-5 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <label htmlFor="flower-sender-name" className="block text-sm font-medium text-bark">
+              <label
+                htmlFor="flower-sender-name"
+                className="block text-sm font-medium text-bark"
+              >
                 Your name
               </label>
               <input
@@ -224,7 +236,10 @@ export function FlowerOrderForm({ initialTier }: FlowerOrderFormProps) {
               />
             </div>
             <div>
-              <label htmlFor="flower-sender-email" className="block text-sm font-medium text-bark">
+              <label
+                htmlFor="flower-sender-email"
+                className="block text-sm font-medium text-bark"
+              >
                 Your email
               </label>
               <input
@@ -238,7 +253,10 @@ export function FlowerOrderForm({ initialTier }: FlowerOrderFormProps) {
               />
             </div>
             <div>
-              <label htmlFor="flower-sender-phone" className="block text-sm font-medium text-bark">
+              <label
+                htmlFor="flower-sender-phone"
+                className="block text-sm font-medium text-bark"
+              >
                 Your phone
               </label>
               <input
@@ -344,7 +362,10 @@ export function FlowerOrderForm({ initialTier }: FlowerOrderFormProps) {
         </div>
 
         <div>
-          <label htmlFor="flower-delivery-date" className="block text-sm font-medium text-bark">
+          <label
+            htmlFor="flower-delivery-date"
+            className="block text-sm font-medium text-bark"
+          >
             Delivery date
           </label>
           <input
@@ -374,7 +395,10 @@ export function FlowerOrderForm({ initialTier }: FlowerOrderFormProps) {
         </div>
 
         <div>
-          <label htmlFor="flower-card-message" className="block text-sm font-medium text-bark">
+          <label
+            htmlFor="flower-card-message"
+            className="block text-sm font-medium text-bark"
+          >
             Card message{" "}
             <span className="font-normal text-stone">(optional)</span>
           </label>
@@ -393,7 +417,10 @@ export function FlowerOrderForm({ initialTier }: FlowerOrderFormProps) {
         </div>
 
         <div>
-          <label htmlFor="flower-notes" className="block text-sm font-medium text-bark">
+          <label
+            htmlFor="flower-notes"
+            className="block text-sm font-medium text-bark"
+          >
             Anything we should know?{" "}
             <span className="font-normal text-stone">(optional)</span>
           </label>
