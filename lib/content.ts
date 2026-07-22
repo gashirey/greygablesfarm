@@ -6,7 +6,8 @@ export const site = {
   name: "Grey Gables Farm",
   domain: "greygablesfarm.com",
   tagline: "Seasonal flowers grown in Virginia",
-  description: "Field-grown stems. Weekly harvest availability.",
+  description:
+    "Farm-fresh designer arrangements, cut the morning of delivery. Same-day delivery across Charlottesville and Central Virginia.",
   email: "info@greygablesfarm.com",
   /** Full mailing / farm address */
   address: {
@@ -31,7 +32,7 @@ export const heroHome = {
   title: "Grown here. Arranged here. Delivered today.",
   subtitle:
     "Custom arrangements grown and designed on our Louisa County farm — delivered same-day across Central Virginia.",
-  primaryCta: { label: "Send flowers", href: "/send-flowers" },
+  primaryCta: { label: "Send flowers", href: "/flowers" },
   secondaryCta: { label: "See what's growing", href: "/available-now" },
 } as const;
 
@@ -135,6 +136,7 @@ export const ordering = {
 export const nav = [
   { label: "Send Flowers", href: "/send-flowers", cta: true },
   { label: "Home", href: "/" },
+  { label: "Flowers", href: "/flowers" },
   { label: "Availability", href: "/available-now" },
   { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },
