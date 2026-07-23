@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AdminNotice } from "@/components/admin/AdminNotice";
+import { surgeExperienceBookUrl } from "@/lib/surge/book-url";
 import type {
   BookingMode,
   OccurrenceStatus,
@@ -256,13 +257,27 @@ export function UPickExperienceEditor({ experienceId }: { experienceId: string }
         <Link href="/admin/u-pick" className="text-sm text-stone underline">
           ← U-Pick
         </Link>
-        <h1 className="mt-2 font-serif text-2xl text-bark">
-          {experience.public_title}
-        </h1>
-        <p className="mt-1 text-sm text-stone">
-          Slug: {experience.slug}
-          {preview ? " · preview data" : ""}
-        </p>
+        <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="font-serif text-2xl text-bark">
+              {experience.public_title}
+            </h1>
+            <p className="mt-1 text-sm text-stone">
+              Slug: {experience.slug}
+              {preview ? " · preview data" : ""}
+              {" · "}
+              {experience.publication_status}
+            </p>
+          </div>
+          <a
+            href={surgeExperienceBookUrl(experience.slug)}
+            target="_blank"
+            rel="noreferrer"
+            className="btn shrink-0 self-start border border-parchment bg-white text-bark"
+          >
+            View live booking page
+          </a>
+        </div>
       </div>
 
       {preview ? (

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AdminNotice } from "@/components/admin/AdminNotice";
 import { UPickPaymentPanel } from "@/components/admin/UPickPaymentPanel";
+import { surgeExperienceBookUrl } from "@/lib/surge/book-url";
 import type { SurgeExperienceListItem } from "@/lib/surge/types";
 
 function formatWhen(iso: string | null) {
@@ -97,26 +98,43 @@ export function UPickManager() {
       ) : (
         <ul className="divide-y divide-parchment border border-parchment bg-white">
           {experiences.map((exp) => (
-            <li key={exp.id}>
+            <li
+              key={exp.id}
+              className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+            >
               <Link
                 href={`/admin/u-pick/${exp.id}`}
-                className="flex flex-col gap-1 px-4 py-4 hover:bg-cream/60 sm:flex-row sm:items-center sm:justify-between"
+                className="min-w-0 flex-1 hover:bg-cream/60"
               >
-                <div>
-                  <p className="font-medium text-bark">{exp.public_title}</p>
-                  <p className="mt-1 text-sm text-stone">
-                    {exp.upcoming_occurrence_count} upcoming night
-                    {exp.upcoming_occurrence_count === 1 ? "" : "s"}
-                    {" · "}
-                    Next {formatWhen(exp.next_occurrence_at)}
-                    {" · "}
-                    {formatMoney(exp.base_price_cents)}
-                  </p>
-                </div>
-                <span className="chip shrink-0 self-start text-xs uppercase tracking-wide sm:self-center">
+                <p className="font-medium text-bark">{exp.public_title}</p>
+                <p className="mt-1 text-sm text-stone">
+                  {exp.upcoming_occurrence_count} upcoming night
+                  {exp.upcoming_occurrence_count === 1 ? "" : "s"}
+                  {" · "}
+                  Next {formatWhen(exp.next_occurrence_at)}
+                  {" · "}
+                  {formatMoney(exp.base_price_cents)}
+                </p>
+              </Link>
+              <div className="flex shrink-0 flex-wrap items-center gap-3">
+                <span className="chip text-xs uppercase tracking-wide">
                   {exp.publication_status}
                 </span>
-              </Link>
+                <a
+                  href={surgeExperienceBookUrl(exp.slug)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm text-stone underline underline-offset-2 hover:text-bark"
+                >
+                  View live
+                </a>
+                <Link
+                  href={`/admin/u-pick/${exp.id}`}
+                  className="text-sm text-bark underline underline-offset-2"
+                >
+                  Edit
+                </Link>
+              </div>
             </li>
           ))}
         </ul>
