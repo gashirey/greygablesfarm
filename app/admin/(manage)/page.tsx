@@ -68,6 +68,15 @@ export default function AdminDashboardPage() {
           </p>
         </Link>
         <Link
+          href="/admin/u-pick"
+          className="border border-parchment bg-white p-5 hover:border-bark/30"
+        >
+          <p className="font-medium text-bark">U-Pick nights</p>
+          <p className="mt-1 text-sm text-stone">
+            Edit August U-Pick capacity, times, and copy (Surge Experiences).
+          </p>
+        </Link>
+        <Link
           href="/admin/campaigns"
           className="border border-parchment bg-white p-5 hover:border-bark/30"
         >

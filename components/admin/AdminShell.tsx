@@ -13,6 +13,7 @@ const links = [
   { href: "/admin/site", label: "Site editor" },
   { href: "/admin/campaigns", label: "Campaigns" },
   { href: "/admin/events", label: "Events" },
+  { href: "/admin/u-pick", label: "U-Pick" },
   { href: "/admin/visits", label: "Traffic" },
   { href: "/admin/inquiries", label: "Inquiries" },
   { href: "/", label: "View site" },
