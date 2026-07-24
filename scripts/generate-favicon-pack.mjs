@@ -10,13 +10,14 @@ import sharp from "sharp";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
 const outDir = join(root, "public");
-const appDir = join(root, "app");
 
 /** Brand-adjacent colors tuned to pop at 16px on browser tabs */
 const SAGE = "#6E9476";
 const PETAL = "#FFFCFA";
 const CENTER = "#E8B44A";
 const CENTER_RING = "#C9952E";
+/** Hot corner badge — same on GG / ASP / Surge so local tabs read instantly */
+const LOCAL_BADGE = "#FF2D55";
 
 /** @param {number} size @param {{ opaque?: boolean }} [opts] */
 function daisySvg(size, opts = {}) {
@@ -158,15 +159,79 @@ async function main() {
   );
   console.log("wrote site.webmanifest");
 
-  // Next App Router file conventions (auto <link> tags)
-  mkdirSync(appDir, { recursive: true });
-  writeFileSync(join(appDir, "favicon.ico"), ico);
-  writeFileSync(join(appDir, "icon.png"), pngs["icon.png"]);
-  writeFileSync(join(appDir, "apple-icon.png"), pngs["apple-touch-icon.png"]);
-  console.log("wrote app/favicon.ico, app/icon.png, app/apple-icon.png");
+  // Prefer public/ + metadata icons (no app/favicon.ico) so localhost can swap packs.
 
-  console.log(`\nDaisy pack ready in ${outDir} (+ app/ icons)`);
+  await writeLocalBadgePack(outDir, pngs, {
+    name: "[local] Grey Gables Farm",
+    short_name: "local",
+    theme_color: LOCAL_BADGE,
+    background_color: "#f2ece9",
+  });
+
+  console.log(`\nDaisy pack ready in ${outDir} (+ public/local badge pack)`);
   console.log(`Colors: sage ${SAGE}, petal ${PETAL}, center ${CENTER}`);
+}
+
+/** @param {string} outDir @param {Record<string, Buffer>} pngs */
+async function writeLocalBadgePack(publicDir, pngs, manifestBase) {
+  const localDir = join(publicDir, "local");
+  mkdirSync(localDir, { recursive: true });
+
+  async function badge(buf, size) {
+    const r = Math.max(3, Math.round(size * 0.22));
+    const cx = size - Math.round(size * 0.22);
+    const cy = Math.round(size * 0.22);
+    const ring = Math.max(1, Math.round(size * 0.04));
+    const overlay = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
+  <circle cx="${cx}" cy="${cy}" r="${r + ring}" fill="#FFFFFF"/>
+  <circle cx="${cx}" cy="${cy}" r="${r}" fill="${LOCAL_BADGE}"/>
+</svg>`);
+    return sharp(buf)
+      .resize(size, size)
+      .composite([{ input: await sharp(overlay).png().toBuffer(), top: 0, left: 0 }])
+      .png()
+      .toBuffer();
+  }
+
+  const localPngs = {};
+  for (const [name, size] of [
+    ["favicon-16x16.png", 16],
+    ["favicon-32x32.png", 32],
+    ["favicon-48x48.png", 48],
+    ["icon.png", 32],
+    ["apple-touch-icon.png", 180],
+    ["icon-192.png", 192],
+    ["icon-512.png", 512],
+  ]) {
+    const src = pngs[name] || pngs["icon-512.png"];
+    localPngs[name] = await badge(src, size);
+    writeFileSync(join(localDir, name), localPngs[name]);
+  }
+
+  const localIco = pngBuffersToIco([
+    localPngs["favicon-16x16.png"],
+    localPngs["favicon-32x32.png"],
+    localPngs["favicon-48x48.png"],
+  ]);
+  writeFileSync(join(localDir, "favicon.ico"), localIco);
+
+  writeFileSync(
+    join(localDir, "site.webmanifest"),
+    `${JSON.stringify(
+      {
+        ...manifestBase,
+        icons: [
+          { src: "/local/icon-192.png", sizes: "192x192", type: "image/png" },
+          { src: "/local/icon-512.png", sizes: "512x512", type: "image/png" },
+        ],
+        display: "standalone",
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  console.log("wrote public/local/* (badged for localhost tabs)");
 }
 
 main().catch((err) => {
