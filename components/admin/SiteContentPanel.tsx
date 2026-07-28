@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { AdminNotice } from "@/components/admin/AdminNotice";
 import { mergeSiteCopy } from "@/lib/site-cms/merge";
-import type { SiteContentOverrides, SiteSettingsRow } from "@/lib/site-cms/types";
+import type {
+  HeroCta,
+  SiteContentOverrides,
+  SiteSettingsRow,
+} from "@/lib/site-cms/types";
+
+const MAX_HERO_CTAS = 4;
 
 export function SiteContentPanel() {
   const [draft, setDraft] = useState({
@@ -11,8 +17,7 @@ export function SiteContentPanel() {
     description: "",
     heroTitle: "",
     heroSubtitle: "",
-    heroCtaLabel: "",
-    heroCtaHref: "",
+    heroCtas: [] as HeroCta[],
     aboutParagraphs: "",
     availabilityTitle: "",
     availabilityDescription: "",
@@ -37,8 +42,7 @@ export function SiteContentPanel() {
       description: merged.site.description,
       heroTitle: merged.heroHome.title,
       heroSubtitle: merged.heroHome.subtitle,
-      heroCtaLabel: merged.heroHome.primaryCta.label,
-      heroCtaHref: merged.heroHome.primaryCta.href,
+      heroCtas: merged.heroHome.ctas.map((c) => ({ ...c })),
       aboutParagraphs: merged.homeAbout.join("\n\n"),
       availabilityTitle: merged.homeSections.availability.title,
       availabilityDescription: merged.homeSections.availability.description,
@@ -67,9 +71,53 @@ export function SiteContentPanel() {
     void load();
   }, [load]);
 
+  function updateCta(index: number, patch: Partial<HeroCta>) {
+    setDraft((prev) => ({
+      ...prev,
+      heroCtas: prev.heroCtas.map((cta, i) =>
+        i === index ? { ...cta, ...patch } : cta,
+      ),
+    }));
+  }
+
+  function addCta() {
+    setDraft((prev) => {
+      if (prev.heroCtas.length >= MAX_HERO_CTAS) return prev;
+      return {
+        ...prev,
+        heroCtas: [...prev.heroCtas, { label: "", href: "" }],
+      };
+    });
+  }
+
+  function removeCta(index: number) {
+    setDraft((prev) => ({
+      ...prev,
+      heroCtas: prev.heroCtas.filter((_, i) => i !== index),
+    }));
+  }
+
+  function moveCta(index: number, direction: -1 | 1) {
+    setDraft((prev) => {
+      const next = index + direction;
+      if (next < 0 || next >= prev.heroCtas.length) return prev;
+      const heroCtas = [...prev.heroCtas];
+      const [item] = heroCtas.splice(index, 1);
+      heroCtas.splice(next, 0, item);
+      return { ...prev, heroCtas };
+    });
+  }
+
   async function save() {
     setSaving(true);
     setNotice(null);
+
+    const ctas = draft.heroCtas
+      .map((c) => ({
+        label: c.label.trim(),
+        href: c.href.trim(),
+      }))
+      .filter((c) => c.label && c.href);
 
     const content_overrides: SiteContentOverrides = {
       site: {
@@ -79,11 +127,13 @@ export function SiteContentPanel() {
       heroHome: {
         title: draft.heroTitle.trim() || undefined,
         subtitle: draft.heroSubtitle.trim() || undefined,
-        primaryCtaLabel: draft.heroCtaLabel.trim() || undefined,
-        primaryCtaHref: draft.heroCtaHref.trim() || undefined,
+        ctas,
       },
       homeAbout: draft.aboutParagraphs.trim()
-        ? draft.aboutParagraphs.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean)
+        ? draft.aboutParagraphs
+            .split(/\n\s*\n/)
+            .map((p) => p.trim())
+            .filter(Boolean)
         : undefined,
       homeSections: {
         availability: {
@@ -129,14 +179,19 @@ export function SiteContentPanel() {
   return (
     <div className="space-y-8">
       {notice && (
-        <AdminNotice type={notice.type} message={notice.message} onDismiss={() => setNotice(null)} />
+        <AdminNotice
+          type={notice.type}
+          message={notice.message}
+          onDismiss={() => setNotice(null)}
+        />
       )}
 
       <section className="border border-parchment bg-white p-5">
         <h2 className="font-serif text-lg text-bark">See what&apos;s growing</h2>
         <p className="mt-2 max-w-xl text-sm text-stone">
-          Controls the hero button, navigation link, and{" "}
-          <span className="font-mono text-xs">/available-now</span> page.
+          Controls the hero button that links to{" "}
+          <span className="font-mono text-xs">/available-now</span>, the
+          navigation link, and that page.
         </p>
         <label className="mt-4 flex items-center gap-2 text-sm">
           <input
@@ -177,7 +232,7 @@ export function SiteContentPanel() {
 
       <section className="border border-parchment bg-white p-5">
         <h2 className="font-serif text-lg text-bark">Site tagline</h2>
-        <div className="mt-4 grid gap-4 max-w-xl">
+        <div className="mt-4 grid max-w-xl gap-4">
           <label className="text-sm">
             Tagline
             <input
@@ -192,7 +247,9 @@ export function SiteContentPanel() {
               className="input mt-1 w-full"
               rows={2}
               value={draft.description}
-              onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+              onChange={(e) =>
+                setDraft({ ...draft, description: e.target.value })
+              }
             />
           </label>
         </div>
@@ -200,13 +257,15 @@ export function SiteContentPanel() {
 
       <section className="border border-parchment bg-white p-5">
         <h2 className="font-serif text-lg text-bark">Homepage hero text</h2>
-        <div className="mt-4 grid gap-4 max-w-xl">
+        <div className="mt-4 grid max-w-xl gap-4">
           <label className="text-sm">
             Headline
             <input
               className="input mt-1 w-full"
               value={draft.heroTitle}
-              onChange={(e) => setDraft({ ...draft, heroTitle: e.target.value })}
+              onChange={(e) =>
+                setDraft({ ...draft, heroTitle: e.target.value })
+              }
             />
           </label>
           <label className="text-sm">
@@ -214,31 +273,91 @@ export function SiteContentPanel() {
             <input
               className="input mt-1 w-full"
               value={draft.heroSubtitle}
-              onChange={(e) => setDraft({ ...draft, heroSubtitle: e.target.value })}
+              onChange={(e) =>
+                setDraft({ ...draft, heroSubtitle: e.target.value })
+              }
             />
           </label>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="text-sm">
-              Button label
-              <input
-                className="input mt-1 w-full"
-                value={draft.heroCtaLabel}
-                onChange={(e) =>
-                  setDraft({ ...draft, heroCtaLabel: e.target.value })
-                }
-              />
-            </label>
-            <label className="text-sm">
-              Button link
-              <input
-                className="input mt-1 w-full font-mono text-xs"
-                value={draft.heroCtaHref}
-                onChange={(e) =>
-                  setDraft({ ...draft, heroCtaHref: e.target.value })
-                }
-              />
-            </label>
+        </div>
+
+        <div className="mt-6 max-w-2xl">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="font-serif text-base text-bark">Hero buttons</h3>
+            <p className="text-xs text-stone">
+              First button is primary; up to {MAX_HERO_CTAS}.
+            </p>
           </div>
+          <ul className="mt-3 space-y-3">
+            {draft.heroCtas.map((cta, index) => (
+              <li
+                key={index}
+                className="border border-parchment bg-cream/40 p-3"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs uppercase tracking-wide text-stone">
+                    {index === 0 ? "Primary" : `Button ${index + 1}`}
+                  </p>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <button
+                      type="button"
+                      className="text-stone underline-offset-2 hover:text-bark hover:underline disabled:opacity-40"
+                      disabled={index === 0}
+                      onClick={() => moveCta(index, -1)}
+                    >
+                      Up
+                    </button>
+                    <button
+                      type="button"
+                      className="text-stone underline-offset-2 hover:text-bark hover:underline disabled:opacity-40"
+                      disabled={index === draft.heroCtas.length - 1}
+                      onClick={() => moveCta(index, 1)}
+                    >
+                      Down
+                    </button>
+                    <button
+                      type="button"
+                      className="text-stone underline-offset-2 hover:text-bark hover:underline"
+                      onClick={() => removeCta(index)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                  <label className="text-sm">
+                    Label
+                    <input
+                      className="input mt-1 w-full"
+                      value={cta.label}
+                      onChange={(e) =>
+                        updateCta(index, { label: e.target.value })
+                      }
+                      placeholder="Order"
+                    />
+                  </label>
+                  <label className="text-sm">
+                    Link
+                    <input
+                      className="input mt-1 w-full font-mono text-xs"
+                      value={cta.href}
+                      onChange={(e) =>
+                        updateCta(index, { href: e.target.value })
+                      }
+                      placeholder="/order"
+                    />
+                  </label>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            className="btn mt-3 border-parchment bg-white text-sm text-bark disabled:opacity-40"
+            disabled={draft.heroCtas.length >= MAX_HERO_CTAS}
+            onClick={addCta}
+          >
+            Add button
+          </button>
         </div>
       </section>
 
@@ -255,7 +374,7 @@ export function SiteContentPanel() {
             }
           />
         </label>
-        <div className="mt-4 grid gap-4 max-w-xl">
+        <div className="mt-4 grid max-w-xl gap-4">
           <label className="text-sm">
             Availability section title
             <input
@@ -281,7 +400,7 @@ export function SiteContentPanel() {
 
       <section className="border border-parchment bg-white p-5">
         <h2 className="font-serif text-lg text-bark">Bottom CTA strip</h2>
-        <div className="mt-4 grid gap-4 max-w-xl">
+        <div className="mt-4 grid max-w-xl gap-4">
           <label className="text-sm">
             Note
             <input
@@ -295,7 +414,9 @@ export function SiteContentPanel() {
             <input
               className="input mt-1 w-full"
               value={draft.ctaRooted}
-              onChange={(e) => setDraft({ ...draft, ctaRooted: e.target.value })}
+              onChange={(e) =>
+                setDraft({ ...draft, ctaRooted: e.target.value })
+              }
             />
           </label>
           <label className="text-sm">
@@ -303,7 +424,9 @@ export function SiteContentPanel() {
             <input
               className="input mt-1 w-full"
               value={draft.ctaContact}
-              onChange={(e) => setDraft({ ...draft, ctaContact: e.target.value })}
+              onChange={(e) =>
+                setDraft({ ...draft, ctaContact: e.target.value })
+              }
             />
           </label>
         </div>
@@ -318,7 +441,8 @@ export function SiteContentPanel() {
         {saving ? "Saving…" : "Save all copy"}
       </button>
       <p className="text-xs text-stone">
-        Values are stored as overrides. Code defaults in lib/content.ts still apply when a field is cleared.
+        Values are stored as overrides. Code defaults in lib/content.ts still
+        apply when a field is cleared.
       </p>
     </div>
   );

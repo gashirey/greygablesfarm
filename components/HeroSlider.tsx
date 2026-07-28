@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "./Button";
 import type { HeroFrame } from "@/lib/content";
 import { focalObjectPosition } from "@/lib/site-cms/focal";
+import type { HeroCta } from "@/lib/site-cms/types";
 import type { HeroLayout } from "@/lib/snapshots/types";
 
 const DEFAULT_SLIDE_MS = 9000;
@@ -28,8 +29,10 @@ type HeroSliderProps = {
   subtitle?: string;
   frame?: HeroFrame;
   layout?: HeroLayout;
-  primaryCta?: { label: string; href: string };
-  secondaryCta?: { label: string; href: string };
+  /** Preferred: ordered buttons (first primary, rest outline). */
+  ctas?: readonly HeroCta[];
+  primaryCta?: HeroCta;
+  secondaryCta?: HeroCta;
   showSlideControls?: boolean;
   slideIntervalMs?: number;
   fadeMs?: number;
@@ -41,12 +44,17 @@ export function HeroSlider({
   subtitle,
   frame = "bleed",
   layout = "standard",
+  ctas,
   primaryCta,
   secondaryCta,
   showSlideControls = true,
   slideIntervalMs = DEFAULT_SLIDE_MS,
   fadeMs = DEFAULT_FADE_MS,
 }: HeroSliderProps) {
+  const buttons =
+    ctas && ctas.length > 0
+      ? ctas
+      : ([primaryCta, secondaryCta].filter(Boolean) as HeroCta[]);
   const [index, setIndex] = useState(0);
   const [reducedMotion, setReducedMotion] = useState(false);
 
@@ -111,22 +119,22 @@ export function HeroSlider({
             {subtitle}
           </p>
         )}
-        {(primaryCta || secondaryCta) && (
+        {buttons.length > 0 && (
           <div className="mt-8 flex flex-wrap gap-3">
-            {primaryCta && (
-              <Button href={primaryCta.href} variant="primary" className="type-button">
-                {primaryCta.label}
-              </Button>
-            )}
-            {secondaryCta && (
+            {buttons.map((cta, i) => (
               <Button
-                href={secondaryCta.href}
-                variant="outline"
-                className="border-white/50 text-white hover:border-white hover:bg-white/10 hover:text-white"
+                key={`${cta.href}-${cta.label}-${i}`}
+                href={cta.href}
+                variant={i === 0 ? "primary" : "outline"}
+                className={
+                  i === 0
+                    ? "type-button"
+                    : "border-white/50 text-white hover:border-white hover:bg-white/10 hover:text-white"
+                }
               >
-                {secondaryCta.label}
+                {cta.label}
               </Button>
-            )}
+            ))}
           </div>
         )}
       </div>

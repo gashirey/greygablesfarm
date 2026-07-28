@@ -28,12 +28,18 @@ export const site = {
   heroImageAlt: "Cut flowers at Grey Gables Farm, Louisa Virginia",
 } as const;
 
+export const heroHomeCtas = [
+  { label: "Send flowers", href: "/order" },
+  { label: "See what's growing", href: "/available-now" },
+] as const;
+
 export const heroHome = {
   title: "Grown here. Arranged here. Delivered today.",
   subtitle:
     "Custom arrangements grown and designed on our Louisa County farm — delivered same-day across Central Virginia.",
-  primaryCta: { label: "Send flowers", href: "/order" },
-  secondaryCta: { label: "See what's growing", href: "/available-now" },
+  ctas: heroHomeCtas,
+  primaryCta: heroHomeCtas[0],
+  secondaryCta: heroHomeCtas[1],
 } as const;
 
 /** Single image on homepage — calmer hero */

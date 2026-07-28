@@ -9,17 +9,64 @@ import {
   site,
 } from "@/lib/content";
 import type {
+  HeroCta,
   ResolvedNavItem,
   ResolvedSiteCopy,
   SiteContentOverrides,
   SiteNavItemRow,
 } from "./types";
 
+function normalizeCta(cta: { label?: string; href?: string } | null | undefined): HeroCta | null {
+  const label = cta?.label?.trim() ?? "";
+  const href = cta?.href?.trim() ?? "";
+  if (!label || !href) return null;
+  return { label, href };
+}
+
+function resolveHeroCtas(
+  overrides: SiteContentOverrides["heroHome"],
+  availabilityEnabled: boolean,
+): HeroCta[] {
+  const fromList =
+    overrides?.ctas
+      ?.map((c) => normalizeCta(c))
+      .filter((c): c is HeroCta => c !== null) ?? [];
+
+  let ctas: HeroCta[];
+  if (fromList.length > 0) {
+    ctas = fromList;
+  } else if (
+    overrides?.primaryCtaLabel ||
+    overrides?.primaryCtaHref ||
+    overrides?.secondaryCtaLabel ||
+    overrides?.secondaryCtaHref
+  ) {
+    const primary = normalizeCta({
+      label: overrides.primaryCtaLabel ?? heroHome.primaryCta.label,
+      href: overrides.primaryCtaHref ?? heroHome.primaryCta.href,
+    });
+    const secondary = normalizeCta({
+      label: overrides.secondaryCtaLabel ?? heroHome.secondaryCta?.label,
+      href: overrides.secondaryCtaHref ?? heroHome.secondaryCta?.href,
+    });
+    ctas = [primary, secondary].filter((c): c is HeroCta => c !== null);
+  } else {
+    ctas = heroHome.ctas.map((c) => ({ label: c.label, href: c.href }));
+  }
+
+  if (!availabilityEnabled) {
+    ctas = ctas.filter((c) => c.href !== "/available-now");
+  }
+
+  return ctas;
+}
+
 export function mergeSiteCopy(
   overrides: SiteContentOverrides = {},
 ): ResolvedSiteCopy {
   const availabilityEnabled =
     overrides.availabilityPage?.enabled ?? availabilityPage.enabled;
+  const ctas = resolveHeroCtas(overrides.heroHome, availabilityEnabled);
 
   return {
     site: {
@@ -29,25 +76,9 @@ export function mergeSiteCopy(
     heroHome: {
       title: overrides.heroHome?.title ?? heroHome.title,
       subtitle: overrides.heroHome?.subtitle ?? heroHome.subtitle,
-      primaryCta: {
-        label:
-          overrides.heroHome?.primaryCtaLabel ?? heroHome.primaryCta.label,
-        href: overrides.heroHome?.primaryCtaHref ?? heroHome.primaryCta.href,
-      },
-      secondaryCta: availabilityEnabled
-        ? overrides.heroHome?.secondaryCtaLabel || overrides.heroHome?.secondaryCtaHref
-          ? {
-              label:
-                overrides.heroHome?.secondaryCtaLabel ??
-                heroHome.secondaryCta?.label ??
-                "",
-              href:
-                overrides.heroHome?.secondaryCtaHref ??
-                heroHome.secondaryCta?.href ??
-                "",
-            }
-          : heroHome.secondaryCta
-        : undefined,
+      ctas,
+      primaryCta: ctas[0] ?? { label: "Send flowers", href: "/order" },
+      secondaryCta: ctas[1],
     },
     homeAbout: overrides.homeAbout?.length
       ? overrides.homeAbout

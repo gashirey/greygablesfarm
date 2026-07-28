@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { Button } from "./Button";
+import type { HeroCta } from "@/lib/site-cms/types";
 
 type HeroProps = {
   title: string;
@@ -7,8 +8,9 @@ type HeroProps = {
   /** Replace src with a real farm hero image, e.g. /images/hero.jpg */
   imageSrc: string;
   imageAlt: string;
-  primaryCta?: { label: string; href: string };
-  secondaryCta?: { label: string; href: string };
+  ctas?: readonly HeroCta[];
+  primaryCta?: HeroCta;
+  secondaryCta?: HeroCta;
   compact?: boolean;
 };
 
@@ -17,10 +19,16 @@ export function Hero({
   subtitle,
   imageSrc,
   imageAlt,
+  ctas,
   primaryCta,
   secondaryCta,
   compact = false,
 }: HeroProps) {
+  const buttons =
+    ctas && ctas.length > 0
+      ? ctas
+      : ([primaryCta, secondaryCta].filter(Boolean) as HeroCta[]);
+
   return (
     <section
       className={`relative overflow-hidden bg-parchment ${compact ? "min-h-[36vh]" : "min-h-[62vh] md:min-h-[68vh]"}`}
@@ -45,22 +53,22 @@ export function Hero({
             {subtitle}
           </p>
         )}
-        {(primaryCta || secondaryCta) && (
+        {buttons.length > 0 && (
           <div className="mt-7 flex flex-wrap gap-3">
-            {primaryCta && (
-              <Button href={primaryCta.href} variant="primary">
-                {primaryCta.label}
-              </Button>
-            )}
-            {secondaryCta && (
+            {buttons.map((cta, i) => (
               <Button
-                href={secondaryCta.href}
-                variant="outline"
-                className="border-white/50 text-white hover:border-white hover:bg-white/10 hover:text-white"
+                key={`${cta.href}-${cta.label}-${i}`}
+                href={cta.href}
+                variant={i === 0 ? "primary" : "outline"}
+                className={
+                  i === 0
+                    ? ""
+                    : "border-white/50 text-white hover:border-white hover:bg-white/10 hover:text-white"
+                }
               >
-                {secondaryCta.label}
+                {cta.label}
               </Button>
-            )}
+            ))}
           </div>
         )}
       </div>

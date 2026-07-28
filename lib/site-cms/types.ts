@@ -17,6 +17,11 @@ export type SiteColorOverrides = Partial<{
   chipText: string;
 }>;
 
+export type HeroCta = {
+  label: string;
+  href: string;
+};
+
 export type SiteContentOverrides = {
   site?: {
     tagline?: string;
@@ -25,6 +30,9 @@ export type SiteContentOverrides = {
   heroHome?: {
     title?: string;
     subtitle?: string;
+    /** Preferred: ordered list of hero buttons (first is primary). */
+    ctas?: HeroCta[];
+    /** @deprecated Prefer ctas — still read for older saved overrides */
     primaryCtaLabel?: string;
     primaryCtaHref?: string;
     secondaryCtaLabel?: string;
@@ -124,8 +132,10 @@ export type ResolvedSiteCopy = {
   heroHome: {
     title: string;
     subtitle: string;
-    primaryCta: { label: string; href: string };
-    secondaryCta?: { label: string; href: string };
+    ctas: HeroCta[];
+    /** First CTA — kept for callers that still use primary/secondary */
+    primaryCta: HeroCta;
+    secondaryCta?: HeroCta;
   };
   homeAbout: string[];
   homeSections: {
