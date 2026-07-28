@@ -91,6 +91,8 @@ export type PriceBreakdown = {
 export type CheckoutInput = {
   productSlug: string;
   vesselId?: string | null;
+  /** Soft vessel hold created when leaving the vessel step. */
+  reservationId?: string | null;
   fulfillmentType: FulfillmentType;
   fulfillmentDate: string;
   pickupWindowId?: string | null;

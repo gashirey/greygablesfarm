@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { SelectedVesselCard } from "@/components/order/SelectedVesselCard";
 import { computeOrderPricing } from "@/lib/order/pricing";
 import type {
   FulfillmentType,
@@ -44,6 +45,10 @@ export function OrderWizard({
   const [vesselLightbox, setVesselLightbox] = useState<VesselLightbox | null>(
     null,
   );
+  const [reservationId, setReservationId] = useState<string | null>(null);
+  const [holdExpiresAt, setHoldExpiresAt] = useState<string | null>(null);
+  const [oneOfAKindHold, setOneOfAKindHold] = useState(false);
+  const [holdingVessel, setHoldingVessel] = useState(false);
   const [fulfillmentType, setFulfillmentType] =
     useState<FulfillmentType>("delivery");
   const [fulfillmentDate, setFulfillmentDate] = useState("");
@@ -126,13 +131,73 @@ export function OrderWizard({
     }
   }
 
-  function goNextFromVessel() {
+  async function releaseCurrentHold() {
+    if (!reservationId) return;
+    const id = reservationId;
+    setReservationId(null);
+    setHoldExpiresAt(null);
+    setOneOfAKindHold(false);
+    try {
+      await fetch("/api/order/release-hold", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reservationId: id }),
+      });
+    } catch {
+      // Expiry sweep will reclaim if release fails
+    }
+  }
+
+  async function changeVessel() {
+    await releaseCurrentHold();
+    setError("");
+    setStep("vessel");
+  }
+
+  async function onHoldExpired() {
+    await releaseCurrentHold();
+    setError("Your vessel hold expired. Please choose again.");
+    setStep("vessel");
+  }
+
+  async function goNextFromVessel() {
     if (needsVessel && !vesselId) {
       setError("Please select a vessel.");
       return;
     }
+    if (!needsVessel || !vesselId) {
+      setError("");
+      setStep("fulfillment");
+      return;
+    }
+
+    setHoldingVessel(true);
     setError("");
-    setStep("fulfillment");
+    try {
+      const res = await fetch("/api/order/hold-vessel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productSlug: product.slug,
+          vesselId,
+          previousReservationId: reservationId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Could not hold that vessel.");
+        setHoldingVessel(false);
+        return;
+      }
+      setReservationId(data.reservationId);
+      setHoldExpiresAt(data.expiresAt);
+      setOneOfAKindHold(Boolean(data.oneOfAKind));
+      setStep("fulfillment");
+    } catch {
+      setError("Could not hold that vessel. Please try again.");
+    } finally {
+      setHoldingVessel(false);
+    }
   }
 
   function goNextFromFulfillment() {
@@ -183,6 +248,7 @@ export function OrderWizard({
         body: JSON.stringify({
           productSlug: product.slug,
           vesselId,
+          reservationId,
           fulfillmentType,
           fulfillmentDate,
           pickupWindowId,
@@ -224,7 +290,9 @@ export function OrderWizard({
     : ["fulfillment", "details", "review"];
 
   return (
-    <div className="mx-auto max-w-xl">
+    <div
+      className={`mx-auto ${step === "vessel" ? "max-w-4xl" : "max-w-xl"}`}
+    >
       <p className="type-eyebrow tracking-wide">
         <Link
           href="/order"
@@ -262,95 +330,108 @@ export function OrderWizard({
         ))}
       </ol>
 
-      <div className="card mt-8 space-y-5 p-6">
-        {step === "vessel" ? (
-          <>
-            <h2 className="font-serif text-lg text-bark">Choose a vessel</h2>
-            <p className="text-sm text-stone">
-              Only available vessels are shown. The vessel is theirs to keep.
-            </p>
-            <ul className="space-y-3">
-              {vessels.map((v) => {
-                const total =
-                  product.basePriceCents + v.priceAdjustmentCents;
-                return (
-                  <li key={v.id}>
-                    <label
-                      className={`flex cursor-pointer gap-3 border border-parchment p-3 ${
-                        vesselId === v.id
-                          ? "border-bark/40 bg-cream"
-                          : "bg-white"
-                      }`}
-                    >
+      {step === "vessel" ? (
+        <div className="mt-8 space-y-6">
+          <h2 className="font-serif text-lg text-bark">Choose a vessel</h2>
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+            {vessels.map((v) => {
+              const selected = vesselId === v.id;
+              const priceLabel =
+                v.priceAdjustmentCents === 0
+                  ? "Included"
+                  : `+${formatCents(v.priceAdjustmentCents)}`;
+              return (
+                <li key={v.id}>
+                  <div
+                    className={`border border-parchment ${
+                      selected ? "border-bark/40 bg-cream" : "bg-white"
+                    }`}
+                  >
+                    <label className="flex cursor-pointer gap-3 p-2 sm:block sm:p-0">
                       <input
                         type="radio"
                         name="vessel"
-                        checked={vesselId === v.id}
-                        onChange={() => setVesselId(v.id)}
-                        className="mt-2"
+                        checked={selected}
+                        onChange={() => {
+                          setVesselId(v.id);
+                          setError("");
+                        }}
+                        className="sr-only"
                       />
-                      {v.imageUrl ? (
-                        <button
-                          type="button"
-                          className="relative h-20 w-16 shrink-0 overflow-hidden bg-parchment"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            setVesselLightbox({
-                              url: v.imageUrl,
-                              alt: v.imageAlt || v.name,
-                              name: v.name,
-                            });
-                          }}
-                          aria-label={`View larger photo of ${v.name}`}
-                        >
+                      <div className="image-frame relative aspect-[3/4] w-28 shrink-0 sm:w-full">
+                        {v.imageUrl ? (
                           <Image
                             src={v.imageUrl}
-                            alt=""
+                            alt={v.imageAlt || v.name}
                             fill
                             className="object-cover"
-                            sizes="64px"
+                            sizes="(max-width: 640px) 112px, (max-width: 1024px) 50vw, 280px"
                           />
-                        </button>
-                      ) : (
-                        <div className="relative h-20 w-16 shrink-0 bg-parchment" />
-                      )}
-                      <div className="min-w-0 flex-1">
+                        ) : null}
+                        {v.imageUrl ? (
+                          <button
+                            type="button"
+                            className="absolute bottom-2 right-2 border border-cream/50 bg-bark/70 px-2 py-1 text-[11px] tracking-wide text-cream transition-colors hover:bg-bark"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              setVesselLightbox({
+                                url: v.imageUrl,
+                                alt: v.imageAlt || v.name,
+                                name: v.name,
+                              });
+                            }}
+                          >
+                            View
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="flex min-w-0 flex-1 flex-col justify-center sm:px-3 sm:py-3">
                         <p className="font-medium text-bark">{v.name}</p>
-                        <p className="mt-1 text-xs leading-relaxed text-stone">
-                          {v.description}
-                        </p>
-                        <p className="mt-2 text-sm text-bark">
-                          {v.priceAdjustmentCents === 0
-                            ? "Included"
-                            : `+${formatCents(v.priceAdjustmentCents)}`}
-                          {" · "}
-                          Arrangement total {formatCents(total)}
-                        </p>
+                        <p className="mt-1 text-sm text-stone">{priceLabel}</p>
                       </div>
                     </label>
-                  </li>
-                );
-              })}
-            </ul>
-            {!vessels.length ? (
-              <p className="text-sm text-stone">
-                No vessels are available right now. Please check back soon or{" "}
-                <Link href="/contact" className="underline">
-                  contact us
-                </Link>
-                .
-              </p>
-            ) : null}
-            <button
-              type="button"
-              className="btn w-full border-[var(--color-salmon-button)] bg-[var(--color-salmon-button)] text-white"
-              onClick={goNextFromVessel}
-              disabled={!vessels.length}
-            >
-              Continue
-            </button>
-          </>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          {!vessels.length ? (
+            <p className="text-sm text-stone">
+              No vessels are available right now. Please check back soon or{" "}
+              <Link href="/contact" className="underline">
+                contact us
+              </Link>
+              .
+            </p>
+          ) : null}
+          {error ? (
+            <p className="text-sm text-bark" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <button
+            type="button"
+            className="btn w-full border-[var(--color-salmon-button)] bg-[var(--color-salmon-button)] text-white disabled:opacity-60 sm:w-auto"
+            onClick={() => void goNextFromVessel()}
+            disabled={!vessels.length || holdingVessel}
+          >
+            {holdingVessel ? "Holding vessel…" : "Continue"}
+          </button>
+        </div>
+      ) : null}
+
+      <div
+        className={`card mt-8 space-y-5 p-6 ${step === "vessel" ? "hidden" : ""}`}
+      >
+        {needsVessel && selectedVessel && step !== "vessel" ? (
+          <SelectedVesselCard
+            vessel={selectedVessel}
+            expiresAt={holdExpiresAt}
+            oneOfAKind={oneOfAKindHold}
+            onChange={() => void changeVessel()}
+            onExpired={() => void onHoldExpired()}
+          />
         ) : null}
 
         {step === "fulfillment" ? (

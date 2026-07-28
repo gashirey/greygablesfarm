@@ -64,6 +64,10 @@ export async function POST(request: Request) {
       typeof payload.productSlug === "string" ? payload.productSlug.trim() : "",
     vesselId:
       typeof payload.vesselId === "string" ? payload.vesselId.trim() : null,
+    reservationId:
+      typeof payload.reservationId === "string"
+        ? payload.reservationId.trim()
+        : null,
     fulfillmentType: payload.fulfillmentType as FulfillmentType,
     fulfillmentDate:
       typeof payload.fulfillmentDate === "string"
@@ -169,7 +173,10 @@ export async function POST(request: Request) {
     );
   }
 
+  const supabase = createServiceClient();
+
   let vessel = null;
+  let hasActiveVesselHold = false;
   if (product.requiresVessel) {
     if (!input.vesselId) {
       return NextResponse.json(
@@ -178,7 +185,29 @@ export async function POST(request: Request) {
       );
     }
     vessel = await getVesselById(input.vesselId);
-    if (!vessel || vessel.qtyOnHand < 1) {
+    if (!vessel || !vessel.isActive) {
+      return NextResponse.json(
+        { error: "That vessel is no longer available." },
+        { status: 400 },
+      );
+    }
+
+    if (input.reservationId) {
+      const { data: hold } = await supabase
+        .from("ss_reservations")
+        .select("id, vessel_id, status, expires_at")
+        .eq("id", input.reservationId)
+        .eq("status", "held")
+        .maybeSingle();
+      const now = new Date().toISOString();
+      hasActiveVesselHold = Boolean(
+        hold &&
+          hold.expires_at >= now &&
+          hold.vessel_id === input.vesselId,
+      );
+    }
+
+    if (!hasActiveVesselHold && vessel.qtyOnHand < 1) {
       return NextResponse.json(
         { error: "That vessel is no longer available." },
         { status: 400 },
@@ -246,8 +275,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const supabase = createServiceClient();
-
   const { data: order, error: orderErr } = await supabase
     .from("ss_orders")
     .insert({
@@ -296,6 +323,7 @@ export async function POST(request: Request) {
     pickupWindowId:
       input.fulfillmentType === "pickup" ? input.pickupWindowId : null,
     orderId: order.id,
+    reservationId: input.reservationId,
   });
 
   if (!reservation.ok) {

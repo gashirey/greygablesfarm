@@ -15,16 +15,104 @@ export type CreateReservationInput = {
   fulfillmentDate: string;
   pickupWindowId?: string | null;
   orderId?: string | null;
+  /** Existing vessel-only hold to upgrade instead of creating a new row. */
+  reservationId?: string | null;
 };
 
 export type ReservationResult =
   | { ok: true; reservationId: string; expiresAt: string }
   | { ok: false; error: string };
 
+async function decrementVesselQty(vesselId: string): Promise<ReservationResult | null> {
+  const supabase = createServiceClient();
+  const { data: vesselRow, error: vErr } = await supabase
+    .from("ss_vessels")
+    .select("qty_on_hand")
+    .eq("id", vesselId)
+    .single();
+  if (vErr || !vesselRow || vesselRow.qty_on_hand < 1) {
+    return { ok: false, error: "That vessel is no longer available." };
+  }
+  const { data: updated, error: decErr } = await supabase
+    .from("ss_vessels")
+    .update({
+      qty_on_hand: vesselRow.qty_on_hand - 1,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", vesselId)
+    .eq("qty_on_hand", vesselRow.qty_on_hand)
+    .select("id")
+    .maybeSingle();
+  if (decErr || !updated) {
+    return {
+      ok: false,
+      error: "That vessel was just reserved. Please choose another.",
+    };
+  }
+  return null;
+}
+
+/**
+ * Hold a vessel before fulfillment details are known (no date capacity yet).
+ */
+export async function createVesselHold(input: {
+  productId: string;
+  vesselId: string;
+}): Promise<ReservationResult> {
+  const supabase = createServiceClient();
+  const product = await getProductById(input.productId);
+  if (!product || !product.isActive) {
+    return { ok: false, error: "Product is not available." };
+  }
+  if (!product.requiresVessel) {
+    return { ok: false, error: "This arrangement does not use a vessel." };
+  }
+
+  const vessel = await getVesselById(input.vesselId);
+  if (!vessel || !vessel.isActive || vessel.qtyOnHand < 1) {
+    return { ok: false, error: "That vessel is no longer available." };
+  }
+
+  const dec = await decrementVesselQty(input.vesselId);
+  if (dec) return dec;
+
+  const expiresAt = new Date(
+    Date.now() + RESERVATION_MINUTES * 60 * 1000,
+  ).toISOString();
+
+  const { data: reservation, error } = await supabase
+    .from("ss_reservations")
+    .insert({
+      product_id: input.productId,
+      vessel_id: input.vesselId,
+      fulfillment_date: null,
+      pickup_window_id: null,
+      capacity_cost: 0,
+      order_id: null,
+      status: "held",
+      expires_at: expiresAt,
+    })
+    .select("id, expires_at")
+    .single();
+
+  if (error || !reservation) {
+    await restoreVesselQty(input.vesselId, 1);
+    console.error("[reservation] vessel hold", error);
+    return { ok: false, error: "Could not hold that vessel. Please try again." };
+  }
+
+  return {
+    ok: true,
+    reservationId: reservation.id,
+    expiresAt: reservation.expires_at,
+  };
+}
+
 /**
  * Hold vessel qty + date capacity for RESERVATION_MINUTES.
  * Vessel qty is decremented on hold and restored on release;
  * capacity is tracked via reservation rows (not a column).
+ * If reservationId points at a valid vessel-only hold, upgrade it instead.
  */
 export async function createReservation(
   input: CreateReservationInput,
@@ -38,10 +126,6 @@ export async function createReservation(
   if (product.requiresVessel) {
     if (!input.vesselId) {
       return { ok: false, error: "Please select a vessel." };
-    }
-    const vessel = await getVesselById(input.vesselId);
-    if (!vessel || !vessel.isActive || vessel.qtyOnHand < 1) {
-      return { ok: false, error: "That vessel is no longer available." };
     }
   }
 
@@ -65,29 +149,63 @@ export async function createReservation(
     }
   }
 
-  // Decrement vessel atomically-ish: check then update with qty guard
+  const now = new Date().toISOString();
+  if (input.reservationId) {
+    const { data: existing } = await supabase
+      .from("ss_reservations")
+      .select("*")
+      .eq("id", input.reservationId)
+      .eq("status", "held")
+      .maybeSingle();
+
+    if (existing && existing.expires_at >= now) {
+      const matches =
+        existing.product_id === input.productId &&
+        (existing.vessel_id ?? null) === (input.vesselId ?? null);
+
+      if (matches) {
+        const expiresAt = new Date(
+          Date.now() + RESERVATION_MINUTES * 60 * 1000,
+        ).toISOString();
+        const { data: upgraded, error: upErr } = await supabase
+          .from("ss_reservations")
+          .update({
+            fulfillment_date: input.fulfillmentDate,
+            pickup_window_id: input.pickupWindowId ?? null,
+            capacity_cost: product.capacityCost,
+            order_id: input.orderId ?? null,
+            expires_at: expiresAt,
+          })
+          .eq("id", existing.id)
+          .eq("status", "held")
+          .select("id, expires_at")
+          .maybeSingle();
+
+        if (!upErr && upgraded) {
+          return {
+            ok: true,
+            reservationId: upgraded.id,
+            expiresAt: upgraded.expires_at,
+          };
+        }
+        return {
+          ok: false,
+          error: "Could not reserve inventory. Please try again.",
+        };
+      }
+
+      // Different vessel on this hold — free it before creating a new one
+      await releaseReservation(existing.id);
+    }
+  }
+
   if (product.requiresVessel && input.vesselId) {
-    const { data: vesselRow, error: vErr } = await supabase
-      .from("ss_vessels")
-      .select("qty_on_hand")
-      .eq("id", input.vesselId)
-      .single();
-    if (vErr || !vesselRow || vesselRow.qty_on_hand < 1) {
+    const vessel = await getVesselById(input.vesselId);
+    if (!vessel || !vessel.isActive || vessel.qtyOnHand < 1) {
       return { ok: false, error: "That vessel is no longer available." };
     }
-    const { data: updated, error: decErr } = await supabase
-      .from("ss_vessels")
-      .update({
-        qty_on_hand: vesselRow.qty_on_hand - 1,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", input.vesselId)
-      .eq("qty_on_hand", vesselRow.qty_on_hand)
-      .select("id")
-      .maybeSingle();
-    if (decErr || !updated) {
-      return { ok: false, error: "That vessel was just reserved. Please choose another." };
-    }
+    const dec = await decrementVesselQty(input.vesselId);
+    if (dec) return dec;
   }
 
   const expiresAt = new Date(
@@ -110,7 +228,6 @@ export async function createReservation(
     .single();
 
   if (error || !reservation) {
-    // Roll back vessel decrement
     if (product.requiresVessel && input.vesselId) {
       await restoreVesselQty(input.vesselId, 1);
     }
