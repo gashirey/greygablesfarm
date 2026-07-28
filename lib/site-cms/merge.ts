@@ -8,6 +8,7 @@ import {
   nav,
   site,
 } from "@/lib/content";
+import { normalizeHeroCta } from "./hero-cta";
 import type {
   HeroCta,
   ResolvedNavItem,
@@ -16,20 +17,13 @@ import type {
   SiteNavItemRow,
 } from "./types";
 
-function normalizeCta(cta: { label?: string; href?: string } | null | undefined): HeroCta | null {
-  const label = cta?.label?.trim() ?? "";
-  const href = cta?.href?.trim() ?? "";
-  if (!label || !href) return null;
-  return { label, href };
-}
-
 function resolveHeroCtas(
   overrides: SiteContentOverrides["heroHome"],
   availabilityEnabled: boolean,
 ): HeroCta[] {
   const fromList =
     overrides?.ctas
-      ?.map((c) => normalizeCta(c))
+      ?.map((c) => normalizeHeroCta(c))
       .filter((c): c is HeroCta => c !== null) ?? [];
 
   let ctas: HeroCta[];
@@ -41,17 +35,19 @@ function resolveHeroCtas(
     overrides?.secondaryCtaLabel ||
     overrides?.secondaryCtaHref
   ) {
-    const primary = normalizeCta({
+    const primary = normalizeHeroCta({
       label: overrides.primaryCtaLabel ?? heroHome.primaryCta.label,
       href: overrides.primaryCtaHref ?? heroHome.primaryCta.href,
+      style: "solid",
     });
-    const secondary = normalizeCta({
+    const secondary = normalizeHeroCta({
       label: overrides.secondaryCtaLabel ?? heroHome.secondaryCta?.label,
       href: overrides.secondaryCtaHref ?? heroHome.secondaryCta?.href,
+      style: "solid",
     });
     ctas = [primary, secondary].filter((c): c is HeroCta => c !== null);
   } else {
-    ctas = heroHome.ctas.map((c) => ({ label: c.label, href: c.href }));
+    ctas = heroHome.ctas.map((c) => normalizeHeroCta(c)!);
   }
 
   if (!availabilityEnabled) {

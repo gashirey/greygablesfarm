@@ -28,11 +28,15 @@ export function HomePageContent({
     subtitle:
       "Custom arrangements grown and designed on our Louisa County farm — delivered same-day across Central Virginia.",
     ctas: [
-      { label: "Send flowers", href: "/order" },
-      { label: "See what's growing", href: "/available-now" },
+      { label: "Send flowers", href: "/order", style: "solid" },
+      { label: "See what's growing", href: "/available-now", style: "solid" },
     ],
-    primaryCta: { label: "Send flowers", href: "/order" },
-    secondaryCta: { label: "See what's growing", href: "/available-now" },
+    primaryCta: { label: "Send flowers", href: "/order", style: "solid" },
+    secondaryCta: {
+      label: "See what's growing",
+      href: "/available-now",
+      style: "solid",
+    },
   };
 
   const slides =

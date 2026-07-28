@@ -269,6 +269,20 @@
     @apply inline-flex items-center justify-center rounded-sm border px-5 py-2.5 text-sm font-medium tracking-wide transition-colors;
   }
 
+  .hero-cta {
+    background-color: var(--hero-cta-bg);
+    border-color: var(--hero-cta-border);
+    color: var(--hero-cta-text);
+  }
+
+  .hero-cta--solid:hover {
+    filter: brightness(0.96);
+  }
+
+  .hero-cta--outline:hover {
+    background-color: var(--hero-cta-hover-bg);
+  }
+
   .card {
     @apply border border-parchment bg-white;
   }

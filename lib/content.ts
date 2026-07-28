@@ -29,8 +29,12 @@ export const site = {
 } as const;
 
 export const heroHomeCtas = [
-  { label: "Send flowers", href: "/order" },
-  { label: "See what's growing", href: "/available-now" },
+  { label: "Send flowers", href: "/order", style: "solid" as const },
+  {
+    label: "See what's growing",
+    href: "/available-now",
+    style: "solid" as const,
+  },
 ] as const;
 
 export const heroHome = {

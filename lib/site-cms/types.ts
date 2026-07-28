@@ -17,9 +17,15 @@ export type SiteColorOverrides = Partial<{
   chipText: string;
 }>;
 
+export type HeroCtaStyle = "solid" | "outline";
+
 export type HeroCta = {
   label: string;
   href: string;
+  /** solid = filled; outline = transparent with border */
+  style?: HeroCtaStyle;
+  /** CSS color for fill (solid) or border/text (outline). Empty = accent salmon. */
+  color?: string;
 };
 
 export type SiteContentOverrides = {
@@ -30,7 +36,7 @@ export type SiteContentOverrides = {
   heroHome?: {
     title?: string;
     subtitle?: string;
-    /** Preferred: ordered list of hero buttons (first is primary). */
+    /** Ordered list of hero buttons. */
     ctas?: HeroCta[];
     /** @deprecated Prefer ctas — still read for older saved overrides */
     primaryCtaLabel?: string;

@@ -2,9 +2,17 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AdminNotice } from "@/components/admin/AdminNotice";
+import {
+  HERO_CTA_ACCENT,
+  HERO_CTA_COLOR_PRESETS,
+  normalizeHeroCta,
+  resolveHeroCtaColor,
+  resolveHeroCtaStyle,
+} from "@/lib/site-cms/hero-cta";
 import { mergeSiteCopy } from "@/lib/site-cms/merge";
 import type {
   HeroCta,
+  HeroCtaStyle,
   SiteContentOverrides,
   SiteSettingsRow,
 } from "@/lib/site-cms/types";
@@ -85,7 +93,10 @@ export function SiteContentPanel() {
       if (prev.heroCtas.length >= MAX_HERO_CTAS) return prev;
       return {
         ...prev,
-        heroCtas: [...prev.heroCtas, { label: "", href: "" }],
+        heroCtas: [
+          ...prev.heroCtas,
+          { label: "", href: "", style: "solid", color: HERO_CTA_ACCENT },
+        ],
       };
     });
   }
@@ -113,11 +124,15 @@ export function SiteContentPanel() {
     setNotice(null);
 
     const ctas = draft.heroCtas
-      .map((c) => ({
-        label: c.label.trim(),
-        href: c.href.trim(),
-      }))
-      .filter((c) => c.label && c.href);
+      .map((c) =>
+        normalizeHeroCta({
+          label: c.label,
+          href: c.href,
+          style: c.style,
+          color: c.color,
+        }),
+      )
+      .filter((c): c is HeroCta => c !== null);
 
     const content_overrides: SiteContentOverrides = {
       site: {
@@ -284,71 +299,138 @@ export function SiteContentPanel() {
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="font-serif text-base text-bark">Hero buttons</h3>
             <p className="text-xs text-stone">
-              First button is primary; up to {MAX_HERO_CTAS}.
+              Style each button; up to {MAX_HERO_CTAS}. Remember Save all copy.
             </p>
           </div>
           <ul className="mt-3 space-y-3">
-            {draft.heroCtas.map((cta, index) => (
-              <li
-                key={index}
-                className="border border-parchment bg-cream/40 p-3"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs uppercase tracking-wide text-stone">
-                    {index === 0 ? "Primary" : `Button ${index + 1}`}
-                  </p>
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    <button
-                      type="button"
-                      className="text-stone underline-offset-2 hover:text-bark hover:underline disabled:opacity-40"
-                      disabled={index === 0}
-                      onClick={() => moveCta(index, -1)}
-                    >
-                      Up
-                    </button>
-                    <button
-                      type="button"
-                      className="text-stone underline-offset-2 hover:text-bark hover:underline disabled:opacity-40"
-                      disabled={index === draft.heroCtas.length - 1}
-                      onClick={() => moveCta(index, 1)}
-                    >
-                      Down
-                    </button>
-                    <button
-                      type="button"
-                      className="text-stone underline-offset-2 hover:text-bark hover:underline"
-                      onClick={() => removeCta(index)}
-                    >
-                      Remove
-                    </button>
+            {draft.heroCtas.map((cta, index) => {
+              const appearance = resolveHeroCtaStyle(cta.style);
+              const tone = resolveHeroCtaColor(cta.color);
+              const presetMatch = HERO_CTA_COLOR_PRESETS.find(
+                (p) => p.value.toLowerCase() === tone.toLowerCase(),
+              );
+
+              return (
+                <li
+                  key={index}
+                  className="border border-parchment bg-cream/40 p-3"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs uppercase tracking-wide text-stone">
+                      Button {index + 1}
+                    </p>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <button
+                        type="button"
+                        className="text-stone underline-offset-2 hover:text-bark hover:underline disabled:opacity-40"
+                        disabled={index === 0}
+                        onClick={() => moveCta(index, -1)}
+                      >
+                        Up
+                      </button>
+                      <button
+                        type="button"
+                        className="text-stone underline-offset-2 hover:text-bark hover:underline disabled:opacity-40"
+                        disabled={index === draft.heroCtas.length - 1}
+                        onClick={() => moveCta(index, 1)}
+                      >
+                        Down
+                      </button>
+                      <button
+                        type="button"
+                        className="text-stone underline-offset-2 hover:text-bark hover:underline"
+                        onClick={() => removeCta(index)}
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
-                </div>
-                <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                  <label className="text-sm">
-                    Label
+                  <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                    <label className="text-sm">
+                      Label
+                      <input
+                        className="input mt-1 w-full"
+                        value={cta.label}
+                        onChange={(e) =>
+                          updateCta(index, { label: e.target.value })
+                        }
+                        placeholder="Order"
+                      />
+                    </label>
+                    <label className="text-sm">
+                      Link
+                      <input
+                        className="input mt-1 w-full font-mono text-xs"
+                        value={cta.href}
+                        onChange={(e) =>
+                          updateCta(index, { href: e.target.value })
+                        }
+                        placeholder="/order"
+                      />
+                    </label>
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <label className="text-sm">
+                      Look
+                      <select
+                        className="input mt-1 w-full"
+                        value={appearance}
+                        onChange={(e) =>
+                          updateCta(index, {
+                            style: e.target.value as HeroCtaStyle,
+                          })
+                        }
+                      >
+                        <option value="solid">Solid fill</option>
+                        <option value="outline">Transparent / outline</option>
+                      </select>
+                    </label>
+                    <label className="text-sm">
+                      Color
+                      <select
+                        className="input mt-1 w-full"
+                        value={presetMatch?.id ?? "custom"}
+                        onChange={(e) => {
+                          const id = e.target.value;
+                          if (id === "custom") return;
+                          const preset = HERO_CTA_COLOR_PRESETS.find(
+                            (p) => p.id === id,
+                          );
+                          if (preset) {
+                            updateCta(index, { color: preset.value });
+                          }
+                        }}
+                      >
+                        {HERO_CTA_COLOR_PRESETS.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.label}
+                          </option>
+                        ))}
+                        <option value="custom">Custom</option>
+                      </select>
+                    </label>
+                  </div>
+                  <label className="mt-3 flex items-center gap-3 text-sm">
+                    <span className="shrink-0">Custom hex</span>
                     <input
-                      className="input mt-1 w-full"
-                      value={cta.label}
+                      type="color"
+                      className="h-9 w-12 cursor-pointer rounded-sm border border-parchment bg-white p-1"
+                      value={tone}
                       onChange={(e) =>
-                        updateCta(index, { label: e.target.value })
+                        updateCta(index, { color: e.target.value })
                       }
-                      placeholder="Order"
+                    />
+                    <input
+                      className="input w-full max-w-[9rem] font-mono text-xs"
+                      value={tone}
+                      onChange={(e) =>
+                        updateCta(index, { color: e.target.value })
+                      }
                     />
                   </label>
-                  <label className="text-sm">
-                    Link
-                    <input
-                      className="input mt-1 w-full font-mono text-xs"
-                      value={cta.href}
-                      onChange={(e) =>
-                        updateCta(index, { href: e.target.value })
-                      }
-                      placeholder="/order"
-                    />
-                  </label>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
           <button
             type="button"

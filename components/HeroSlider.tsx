@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
-import { Button } from "./Button";
+import { HeroCtaButton } from "./HeroCtaButton";
 import type { HeroFrame } from "@/lib/content";
 import { focalObjectPosition } from "@/lib/site-cms/focal";
 import type { HeroCta } from "@/lib/site-cms/types";
@@ -122,18 +122,10 @@ export function HeroSlider({
         {buttons.length > 0 && (
           <div className="mt-8 flex flex-wrap gap-3">
             {buttons.map((cta, i) => (
-              <Button
+              <HeroCtaButton
                 key={`${cta.href}-${cta.label}-${i}`}
-                href={cta.href}
-                variant={i === 0 ? "primary" : "outline"}
-                className={
-                  i === 0
-                    ? "type-button"
-                    : "border-white/50 text-white hover:border-white hover:bg-white/10 hover:text-white"
-                }
-              >
-                {cta.label}
-              </Button>
+                cta={cta}
+              />
             ))}
           </div>
         )}
