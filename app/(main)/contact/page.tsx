@@ -39,7 +39,7 @@ export default async function ContactPage() {
             }
           >
             <div className="mt-6">
-              <ContactForm />
+              <ContactForm hideSubject defaultSubject="general" />
             </div>
           </Suspense>
           <LocationBlock className="mt-10 border-t border-parchment pt-10" />

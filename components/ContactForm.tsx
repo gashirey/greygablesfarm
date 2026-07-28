@@ -51,8 +51,9 @@ export function ContactForm({
   bare = false,
 }: ContactFormProps) {
   const searchParams = useSearchParams();
+  // Prop wins so pages can force a default (e.g. contact → general) while URL ?subject= stays available later
   const rawSubject =
-    searchParams.get("subject") ?? defaultSubjectProp ?? "general";
+    defaultSubjectProp ?? searchParams.get("subject") ?? "general";
   const subjectKey = rawSubject === "wedding" ? "event" : rawSubject;
   const defaultSubject = subjectLabels[subjectKey] ?? subjectLabels.general;
 
@@ -233,7 +234,9 @@ export function ContactForm({
             disabled={disabled}
             placeholder={
               messagePlaceholder ??
-              `Tell us about your ${defaultSubject.toLowerCase()}...`
+              (hideSubject
+                ? "How can we help?"
+                : `Tell us about your ${defaultSubject.toLowerCase()}...`)
             }
             className={`${inputClass} resize-none`}
           />
