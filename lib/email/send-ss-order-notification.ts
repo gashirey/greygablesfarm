@@ -1,4 +1,5 @@
 import { site } from "@/lib/content";
+import { orderManageUrl } from "@/lib/order/manage-token";
 import { formatCents } from "@/lib/order/types";
 import { createServiceClient } from "@/lib/supabase/server";
 
@@ -35,12 +36,18 @@ export async function sendSsOrderEmails(orderId: string): Promise<void> {
   const vessel = order.ss_vessels as { name: string } | null;
   const zone = order.ss_delivery_zones as { name: string } | null;
 
+  const origin =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+    `https://${site.domain}`;
+  const manageLink = orderManageUrl(origin, order.id);
+
   const lines = [
     "Grey Gables Farm — Order confirmation",
     "",
     `Order: ${order.id}`,
     `Arrangement: ${product?.name ?? "—"}`,
     vessel ? `Vessel: ${vessel.name}` : null,
+    order.presentation ? `Presentation: ${order.presentation}` : null,
     `Fulfillment: ${order.fulfillment_type}`,
     `Date: ${order.fulfillment_date}`,
     zone ? `Delivery zone: ${zone.name}` : null,
@@ -65,6 +72,7 @@ export async function sendSsOrderEmails(orderId: string): Promise<void> {
     `Total: ${formatCents(order.total_cents)}`,
     `Payment: ${order.payment_status}`,
     `Status: ${order.fulfillment_status}`,
+    manageLink ? `\nManage / update this order:\n${manageLink}` : null,
   ].filter(Boolean);
 
   const text = lines.join("\n");

@@ -1,9 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { OrderPageCopy } from "@/lib/order/copy";
 import { computeOrderPricing } from "@/lib/order/pricing";
+import {
+  loadSavedBuyerDetails,
+  saveBuyerDetails,
+} from "@/lib/order/saved-buyer";
 import type {
   FulfillmentType,
   PresentationMode,
@@ -87,6 +91,8 @@ export function DesignersChoiceFlow({
   const [buyerEmail, setBuyerEmail] = useState("");
   const [buyerPhone, setBuyerPhone] = useState("");
   const [notes, setNotes] = useState("");
+  const [rememberDetails, setRememberDetails] = useState(true);
+  const [hydratedSaved, setHydratedSaved] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -140,6 +146,27 @@ export function DesignersChoiceFlow({
     }
   }
 
+  useEffect(() => {
+    const saved = loadSavedBuyerDetails();
+    if (!saved) {
+      setHydratedSaved(true);
+      return;
+    }
+    setBuyerName(saved.buyerName || "");
+    setBuyerEmail(saved.buyerEmail || "");
+    setBuyerPhone(saved.buyerPhone || "");
+    if (saved.recipientName) setRecipientName(saved.recipientName);
+    if (saved.recipientPhone) setRecipientPhone(saved.recipientPhone);
+    if (saved.addressStreet) setAddressStreet(saved.addressStreet);
+    if (saved.addressCity) setAddressCity(saved.addressCity);
+    if (saved.addressZip) setAddressZip(saved.addressZip);
+    setRememberDetails(true);
+    setHydratedSaved(true);
+    if (saved.addressZip?.length === 5) {
+      void lookupZip(saved.addressZip);
+    }
+  }, []);
+
   function continueToDelivery() {
     if (!product) {
       setError("Please choose a scale.");
@@ -190,6 +217,18 @@ export function DesignersChoiceFlow({
   async function startCheckout() {
     if (!product || !pricing) return;
     if (!validateDelivery()) return;
+
+    saveBuyerDetails({
+      buyerName,
+      buyerEmail,
+      buyerPhone,
+      recipientName,
+      recipientPhone,
+      addressStreet,
+      addressCity,
+      addressZip,
+      remember: rememberDetails,
+    });
 
     setSubmitting(true);
     setError("");
@@ -279,217 +318,179 @@ export function DesignersChoiceFlow({
     </ol>
   );
 
-  const summary = (
-    <aside className="border border-parchment bg-white p-5 lg:sticky lg:top-24">
-      <p className="type-eyebrow text-stone">{copy.summaryEyebrow}</p>
-      <h2 className="mt-1 font-serif text-xl text-bark">{copy.summaryTitle}</h2>
-      <dl className="mt-4 space-y-2 text-sm">
-        <div className="flex justify-between gap-3">
-          <dt className="text-stone">Scale</dt>
-          <dd className="text-right text-bark">{product.name}</dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="text-stone">Presentation</dt>
-          <dd className="text-right text-bark">{presentationLabel}</dd>
-        </div>
-        {page === "delivery" && fulfillmentDate ? (
-          <div className="flex justify-between gap-3">
-            <dt className="text-stone">
-              {fulfillmentType === "delivery" ? "Delivery" : "Pickup"}
-            </dt>
-            <dd className="text-right text-bark">{fulfillmentDate}</dd>
-          </div>
-        ) : null}
-      </dl>
-      {pricing ? (
-        <div className="mt-5 border-t border-parchment pt-4">
-          <ul className="space-y-1.5 text-sm">
-            {pricing.lines.map((line) => (
-              <li
-                key={`${line.kind}-${line.label}`}
-                className="flex justify-between gap-3 text-stone"
-              >
-                <span>{line.label}</span>
-                <span className="text-bark">
-                  {formatCents(line.unitAmountCents)}
-                </span>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-3 flex justify-between font-medium text-bark">
-            <span>Subtotal</span>
-            <span>{formatCents(pricing.totalCents)}</span>
-          </p>
-          <p className="mt-1 text-xs text-stone">Tax calculated at checkout.</p>
-        </div>
-      ) : null}
-      {page === "arrangement" ? (
-        <div className="mt-5">
-          <button
-            type="button"
-            className="btn w-full border-bark bg-bark text-cream"
-            onClick={continueToDelivery}
-          >
-            {copy.continueCta}
-          </button>
-          <p className="mt-2 text-center text-xs text-stone">
-            {copy.continueHint}
-          </p>
-        </div>
-      ) : null}
-    </aside>
-  );
-
   return (
     <div className="mx-auto max-w-6xl">
       {progress}
 
       {page === "arrangement" ? (
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-start">
-          <div>
-            <header className="max-w-2xl">
-              <p className="type-eyebrow">{copy.eyebrow}</p>
-              <h1 className="type-page-title mt-2 leading-tight">{copy.title}</h1>
-              <p className="type-page-body mt-4 leading-relaxed">{copy.lead}</p>
-              <p className="mt-3 text-sm leading-relaxed text-stone">
-                {copy.supporting}
-              </p>
-            </header>
+        <div className="max-w-4xl">
+          <header className="max-w-2xl">
+            <p className="type-eyebrow">{copy.eyebrow}</p>
+            <h1 className="type-page-title mt-2 leading-tight">{copy.title}</h1>
+            <p className="type-page-body mt-4 leading-relaxed">{copy.lead}</p>
+            <p className="mt-3 text-sm leading-relaxed text-stone">
+              {copy.supporting}
+            </p>
+          </header>
 
-            <section className="mt-10" aria-labelledby="scale-heading">
-              <h2 id="scale-heading" className="sr-only">
-                Choose your scale
-              </h2>
-              <div className="grid gap-4 sm:grid-cols-3">
-                {products.map((p) => {
-                  const selected = p.id === product.id;
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => setProduct(p)}
-                      className={`border bg-white text-left transition-colors ${
-                        selected
-                          ? "border-bark"
-                          : "border-parchment hover:border-stone"
-                      }`}
-                    >
-                      <div className="image-frame relative aspect-[4/5]">
-                        {p.imageUrl ? (
-                          <Image
-                            src={p.imageUrl}
-                            alt={p.imageAlt}
-                            fill
-                            className="object-cover"
-                            sizes="(max-width: 640px) 100vw, 33vw"
-                          />
-                        ) : (
-                          <div className="absolute inset-0 bg-parchment" />
-                        )}
-                        {p.isPopular ? (
-                          <span className="absolute left-2 top-2 bg-cream px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-bark">
-                            Most sent
-                          </span>
-                        ) : null}
+          <section className="mt-10" aria-labelledby="scale-heading">
+            <h2 id="scale-heading" className="sr-only">
+              Choose your scale
+            </h2>
+            <div className="grid gap-4 sm:grid-cols-3">
+              {products.map((p) => {
+                const selected = p.id === product.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setProduct(p)}
+                    className={`border bg-white text-left transition-colors ${
+                      selected
+                        ? "border-bark"
+                        : "border-parchment hover:border-stone"
+                    }`}
+                  >
+                    <div className="image-frame relative aspect-[4/5]">
+                      {p.imageUrl ? (
+                        <Image
+                          src={p.imageUrl}
+                          alt={p.imageAlt}
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 640px) 100vw, 33vw"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 bg-parchment" />
+                      )}
+                      {p.isPopular ? (
+                        <span className="absolute left-2 top-2 bg-cream px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-bark">
+                          Most sent
+                        </span>
+                      ) : null}
+                      {selected ? (
+                        <span
+                          className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center bg-bark text-sm text-cream"
+                          aria-hidden
+                        >
+                          ✓
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="border-t border-parchment p-4">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="font-serif text-lg text-bark">
+                          {p.name}
+                        </span>
+                        <span className="font-serif text-lg text-bark">
+                          {formatCents(p.basePriceCents)}
+                        </span>
                       </div>
-                      <div className="border-t border-parchment p-4">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span className="font-serif text-lg text-bark">
-                            {p.name}
-                          </span>
-                          <span className="font-serif text-lg text-bark">
-                            {formatCents(p.basePriceCents)}
-                          </span>
-                        </div>
-                        <p className="mt-2 text-xs leading-relaxed text-stone">
-                          {p.blurb || p.description}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="mt-4 max-w-2xl text-xs leading-relaxed text-stone">
-                {copy.scaleNote}
-              </p>
-            </section>
-
-            <hr className="my-10 border-parchment" />
-
-            <section aria-labelledby="presentation-heading">
-              <p className="type-eyebrow">{copy.presentationEyebrow}</p>
-              <h2
-                id="presentation-heading"
-                className="mt-1 font-serif text-2xl text-bark"
-              >
-                {copy.presentationTitle}
-              </h2>
-              <p className="mt-2 max-w-xl text-sm text-stone">
-                {copy.presentationLead}
-              </p>
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                {(
-                  [
-                    {
-                      id: "signature-glass" as const,
-                      name: copy.glassName,
-                      description: copy.glassDescription,
-                      priceLabel: copy.glassPriceLabel,
-                    },
-                    {
-                      id: "curated-keepsake" as const,
-                      name: copy.curatedName,
-                      description: copy.curatedDescription,
-                      priceLabel:
-                        product.vesselUpgradeCents > 0
-                          ? `+${formatCents(product.vesselUpgradeCents)}`
-                          : "Included",
-                    },
-                  ] as const
-                ).map((opt) => {
-                  const selected = presentation === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => setPresentation(opt.id)}
-                      className={`border p-4 text-left transition-colors ${
-                        selected
-                          ? "border-bark bg-white"
-                          : "border-parchment bg-white hover:border-stone"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="font-medium text-bark">{opt.name}</span>
-                        {selected ? (
-                          <span className="text-bark" aria-hidden>
-                            ✓
-                          </span>
-                        ) : null}
-                      </div>
-                      <p className="mt-2 text-sm leading-relaxed text-stone">
-                        {opt.description}
+                      <p className="mt-2 text-xs leading-relaxed text-stone">
+                        {p.blurb || p.description}
                       </p>
-                      <p className="mt-3 text-sm text-bark">{opt.priceLabel}</p>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-4 max-w-2xl text-xs leading-relaxed text-stone">
+              {copy.scaleNote}
+            </p>
+          </section>
 
-            <div className="mt-10 lg:hidden">{summary}</div>
+          <hr className="my-10 border-parchment" />
+
+          <section aria-labelledby="presentation-heading">
+            <p className="type-eyebrow">{copy.presentationEyebrow}</p>
+            <h2
+              id="presentation-heading"
+              className="mt-1 font-serif text-2xl text-bark"
+            >
+              {copy.presentationTitle}
+            </h2>
+            <p className="mt-2 max-w-xl text-sm text-stone">
+              {copy.presentationLead}
+            </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              {(
+                [
+                  {
+                    id: "signature-glass" as const,
+                    name: copy.glassName,
+                    description: copy.glassDescription,
+                    priceLabel: copy.glassPriceLabel,
+                  },
+                  {
+                    id: "curated-keepsake" as const,
+                    name: copy.curatedName,
+                    description: copy.curatedDescription,
+                    priceLabel:
+                      product.vesselUpgradeCents > 0
+                        ? `+${formatCents(product.vesselUpgradeCents)}`
+                        : "Included",
+                  },
+                ] as const
+              ).map((opt) => {
+                const selected = presentation === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setPresentation(opt.id)}
+                    className={`border p-4 text-left transition-colors ${
+                      selected
+                        ? "border-bark bg-white"
+                        : "border-parchment bg-white hover:border-stone"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-medium text-bark">{opt.name}</span>
+                      {selected ? (
+                        <span className="text-bark" aria-hidden>
+                          ✓
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-2 text-sm leading-relaxed text-stone">
+                      {opt.description}
+                    </p>
+                    <p className="mt-3 text-sm text-bark">{opt.priceLabel}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          <div className="mt-12 max-w-md">
+            {error ? (
+              <p className="mb-3 text-sm text-red-800" role="alert">
+                {error}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              className="btn w-full border-bark bg-bark text-cream sm:w-auto"
+              onClick={continueToDelivery}
+            >
+              {copy.continueCta}
+            </button>
+            {copy.continueHint ? (
+              <p className="mt-2 text-xs text-stone">{copy.continueHint}</p>
+            ) : null}
           </div>
-
-          <div className="hidden lg:block">{summary}</div>
         </div>
       ) : (
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-start">
-          <div className="max-w-xl space-y-10">
+        <div className="max-w-xl space-y-10">
             <header>
               <p className="type-eyebrow">{copy.deliveryEyebrow}</p>
               <h1 className="type-page-title mt-2 leading-tight">
                 {copy.deliveryTitle}
               </h1>
+              <p className="mt-3 text-sm text-stone">
+                {product.name} · {presentationLabel}
+                {pricing ? ` · ${formatCents(pricing.totalCents)}` : ""}
+              </p>
               <button
                 type="button"
                 className="mt-3 text-sm text-stone underline underline-offset-2"
@@ -739,12 +740,18 @@ export function DesignersChoiceFlow({
 
             <section className="space-y-3">
               <h2 className="font-serif text-xl text-bark">Your contact</h2>
+              {hydratedSaved && rememberDetails && buyerEmail ? (
+                <p className="text-xs text-stone">
+                  We filled in details saved on this device.
+                </p>
+              ) : null}
               <label className="block text-sm">
                 Name
                 <input
                   className="input mt-1 w-full"
                   value={buyerName}
                   onChange={(e) => setBuyerName(e.target.value)}
+                  autoComplete="name"
                 />
               </label>
               <label className="block text-sm">
@@ -754,6 +761,7 @@ export function DesignersChoiceFlow({
                   className="input mt-1 w-full"
                   value={buyerEmail}
                   onChange={(e) => setBuyerEmail(e.target.value)}
+                  autoComplete="email"
                 />
               </label>
               <label className="block text-sm">
@@ -762,7 +770,16 @@ export function DesignersChoiceFlow({
                   className="input mt-1 w-full"
                   value={buyerPhone}
                   onChange={(e) => setBuyerPhone(e.target.value)}
+                  autoComplete="tel"
                 />
+              </label>
+              <label className="flex items-center gap-2 text-sm text-bark">
+                <input
+                  type="checkbox"
+                  checked={rememberDetails}
+                  onChange={(e) => setRememberDetails(e.target.checked)}
+                />
+                Save my details on this device for next time
               </label>
             </section>
 
@@ -771,6 +788,26 @@ export function DesignersChoiceFlow({
               <h2 className="mt-1 font-serif text-xl text-bark">
                 {copy.reviewTitle}
               </h2>
+              {pricing ? (
+                <ul className="mt-4 space-y-1.5 text-sm">
+                  {pricing.lines.map((line) => (
+                    <li
+                      key={`${line.kind}-${line.label}`}
+                      className="flex justify-between gap-3 text-stone"
+                    >
+                      <span>{line.label}</span>
+                      <span className="text-bark">
+                        {formatCents(line.unitAmountCents)}
+                      </span>
+                    </li>
+                  ))}
+                  <li className="flex justify-between gap-3 border-t border-parchment pt-2 font-medium text-bark">
+                    <span>Subtotal</span>
+                    <span>{formatCents(pricing.totalCents)}</span>
+                  </li>
+                </ul>
+              ) : null}
+              <p className="mt-1 text-xs text-stone">Tax calculated at checkout.</p>
               {error ? (
                 <p className="mt-3 text-sm text-red-800" role="alert">
                   {error}
@@ -795,18 +832,8 @@ export function DesignersChoiceFlow({
                 </button>
               </div>
             </section>
-          </div>
-
-          <div className="hidden lg:block">{summary}</div>
-          <div className="lg:hidden">{summary}</div>
         </div>
       )}
-
-      {page === "arrangement" && error ? (
-        <p className="mt-6 text-sm text-red-800" role="alert">
-          {error}
-        </p>
-      ) : null}
     </div>
   );
 }

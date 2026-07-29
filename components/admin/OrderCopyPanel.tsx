@@ -33,10 +33,8 @@ const SECTIONS: { title: string; hint?: string; fields: Field[] }[] = [
       { key: "glassPriceLabel", label: "Signature Glass Vase — price label" },
       { key: "curatedName", label: "Curated Keepsake — name" },
       { key: "curatedDescription", label: "Curated Keepsake — description", multiline: true },
-      { key: "continueCta", label: "Continue button" },
-      { key: "continueHint", label: "Continue hint under button" },
-      { key: "summaryEyebrow", label: "Summary eyebrow" },
-      { key: "summaryTitle", label: "Summary title" },
+      { key: "continueCta", label: "Page 1 CTA (e.g. Delivery Instructions)" },
+      { key: "continueHint", label: "Hint under Page 1 CTA (optional)" },
     ],
   },
   {
