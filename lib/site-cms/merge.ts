@@ -8,6 +8,7 @@ import {
   nav,
   site,
 } from "@/lib/content";
+import { mergeOrderPageCopy } from "@/lib/order/copy";
 import { normalizeHeroCta } from "./hero-cta";
 import type {
   HeroCta,
@@ -101,6 +102,7 @@ export function mergeSiteCopy(
     availabilityPage: {
       enabled: availabilityEnabled,
     },
+    orderPage: mergeOrderPageCopy(overrides.orderPage),
   };
 }
 

@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import Image from "next/image";
-import Link from "next/link";
 import { Section } from "@/components/Section";
-import { listActiveProducts } from "@/lib/order/queries";
-import { formatCents } from "@/lib/order/types";
+import { DesignersChoiceFlow } from "@/components/order/DesignersChoiceFlow";
+import { listActiveProducts, listAvailability } from "@/lib/order/queries";
+import { normalizeOrderScales } from "@/lib/order/scales";
 import { pageMetadata } from "@/lib/metadata";
+import { getPublicSiteConfig } from "@/lib/site-cms/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -15,72 +15,50 @@ export const metadata: Metadata = pageMetadata({
   path: "/order",
 });
 
-export default async function OrderIndexPage() {
-  const products = await listActiveProducts();
+/** Legacy product slugs → current scale slugs */
+const SCALE_ALIASES: Record<string, string> = {
+  choice: "classic",
+  deluxe: "signature",
+  "curated-vessel": "grand",
+  vessel: "grand",
+};
+
+type Props = {
+  searchParams: Promise<{ scale?: string }>;
+};
+
+export default async function OrderIndexPage({ searchParams }: Props) {
+  const { scale: rawScale } = await searchParams;
+  const [{ copy }, products, availability] = await Promise.all([
+    getPublicSiteConfig(),
+    listActiveProducts(),
+    listAvailability({ days: 21 }),
+  ]);
+
+  const requested = rawScale?.trim().toLowerCase() ?? "";
+  const initialScaleSlug =
+    SCALE_ALIASES[requested] ?? (requested || undefined);
+
+  const scales = normalizeOrderScales(products);
+
+  // Match initial scale whether DB still uses legacy slugs or modern ones
+  const resolvedInitial =
+    initialScaleSlug &&
+    (scales.find((p) => p.slug === initialScaleSlug)?.slug ||
+      scales.find(
+        (p) =>
+          SCALE_ALIASES[p.slug] === initialScaleSlug ||
+          p.slug === SCALE_ALIASES[initialScaleSlug],
+      )?.slug);
 
   return (
     <Section density="compact">
-      <header className="max-w-2xl">
-        <h1 className="type-page-title leading-tight">Order flowers</h1>
-        <p className="type-page-body mt-4 leading-relaxed">
-          Choose an arrangement. We&apos;ll guide you through vessel selection
-          (when needed), delivery or farm pickup, and secure checkout.
-        </p>
-      </header>
-
-      <div className="mt-10 grid gap-6 md:grid-cols-3">
-        {products.map((p) => (
-          <article key={p.id} className="card flex flex-col">
-            <div className="image-frame relative aspect-[4/5]">
-              {p.imageUrl ? (
-                <Image
-                  src={p.imageUrl}
-                  alt={p.imageAlt}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 100vw, 33vw"
-                />
-              ) : (
-                <div className="absolute inset-0 bg-parchment" />
-              )}
-            </div>
-            <div className="flex flex-1 flex-col border-t border-parchment p-5">
-              <div className="flex items-baseline justify-between gap-2">
-                <h2 className="font-serif text-xl text-bark">{p.name}</h2>
-                <p className="font-serif text-xl text-bark">
-                  {formatCents(p.basePriceCents)}
-                </p>
-              </div>
-              <p className="mt-3 flex-1 text-sm leading-relaxed text-stone">
-                {p.description}
-              </p>
-              {p.requiresVessel ? (
-                <p className="mt-2 text-xs text-stone">
-                  Includes curated vessel selection
-                </p>
-              ) : (
-                <p className="mt-2 text-xs text-stone">Standard glass vase</p>
-              )}
-              <Link
-                href={`/order/${p.slug}`}
-                className="btn mt-5 w-full border-[var(--color-salmon-button)] bg-[var(--color-salmon-button)] text-center text-white hover:bg-[var(--color-salmon-button-hover)]"
-              >
-                Select
-              </Link>
-            </div>
-          </article>
-        ))}
-      </div>
-
-      {!products.length ? (
-        <p className="mt-8 text-sm text-stone">
-          Arrangements are not available online right now. Please{" "}
-          <Link href="/contact" className="underline underline-offset-2">
-            contact the farm
-          </Link>
-          .
-        </p>
-      ) : null}
+      <DesignersChoiceFlow
+        products={scales}
+        availability={availability}
+        copy={copy.orderPage}
+        initialScaleSlug={resolvedInitial || initialScaleSlug}
+      />
     </Section>
   );
 }

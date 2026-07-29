@@ -8,10 +8,10 @@ type Props = {
 export default async function FlowersOrderRedirectPage({ searchParams }: Props) {
   const { tier } = await searchParams;
   const slugMap: Record<string, string> = {
-    choice: "choice",
-    deluxe: "deluxe",
-    vessel: "curated-vessel",
+    choice: "classic",
+    deluxe: "signature",
+    vessel: "grand",
   };
   const slug = tier ? slugMap[tier] : undefined;
-  redirect(slug ? `/order/${slug}` : "/order");
+  redirect(slug ? `/order?scale=${encodeURIComponent(slug)}` : "/order");
 }

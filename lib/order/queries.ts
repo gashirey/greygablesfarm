@@ -23,30 +23,57 @@ function client() {
   return createServiceClient();
 }
 
-export async function listActiveProducts(): Promise<SsProduct[]> {
+const PRODUCT_SELECT_CORE =
+  "id,slug,name,description,base_price_cents,capacity_cost,requires_vessel,allows_delivery,allows_pickup,image_url,image_alt,is_active,sort_order";
+const PRODUCT_SELECT_FULL = `${PRODUCT_SELECT_CORE},blurb,vessel_upgrade_cents,is_popular`;
+
+async function selectProducts(
+  activeOnly: boolean,
+): Promise<{ rows: ProductRow[]; error: string | null }> {
   const supabase = client();
-  if (!supabase) return [];
-  const { data, error } = await supabase
+  if (!supabase) return { rows: [], error: null };
+
+  let q = supabase
     .from("ss_products")
-    .select("*")
-    .eq("is_active", true)
+    .select(PRODUCT_SELECT_FULL)
     .order("sort_order", { ascending: true });
+  if (activeOnly) q = q.eq("is_active", true);
+
+  const { data, error } = await q;
+  if (!error) {
+    return { rows: (data ?? []) as ProductRow[], error: null };
+  }
+
+  // Pre-migration 032: new columns may be missing
+  if (/blurb|vessel_upgrade|is_popular|schema cache|PGRST/i.test(error.message)) {
+    let fallback = supabase
+      .from("ss_products")
+      .select(PRODUCT_SELECT_CORE)
+      .order("sort_order", { ascending: true });
+    if (activeOnly) fallback = fallback.eq("is_active", true);
+    const retry = await fallback;
+    if (retry.error) {
+      return { rows: [], error: retry.error.message };
+    }
+    return { rows: (retry.data ?? []) as ProductRow[], error: null };
+  }
+
+  return { rows: [], error: error.message };
+}
+
+export async function listActiveProducts(): Promise<SsProduct[]> {
+  const { rows, error } = await selectProducts(true);
   if (error) {
-    console.error("[ss_products]", error.message);
+    console.error("[ss_products]", error);
     return [];
   }
-  return ((data ?? []) as ProductRow[]).map(mapProduct);
+  return rows.map(mapProduct);
 }
 
 export async function listAllProductsAdmin(): Promise<ProductRow[]> {
-  const supabase = client();
-  if (!supabase) return [];
-  const { data, error } = await supabase
-    .from("ss_products")
-    .select("*")
-    .order("sort_order", { ascending: true });
-  if (error) throw new Error(error.message);
-  return (data ?? []) as ProductRow[];
+  const { rows, error } = await selectProducts(false);
+  if (error) throw new Error(error);
+  return rows;
 }
 
 export async function getProductBySlug(slug: string): Promise<SsProduct | null> {
@@ -54,23 +81,45 @@ export async function getProductBySlug(slug: string): Promise<SsProduct | null> 
   if (!supabase) return null;
   const { data, error } = await supabase
     .from("ss_products")
-    .select("*")
+    .select(PRODUCT_SELECT_FULL)
     .eq("slug", slug)
     .eq("is_active", true)
     .maybeSingle();
-  if (error || !data) return null;
-  return mapProduct(data as ProductRow);
+  if (!error && data) return mapProduct(data as ProductRow);
+
+  if (error && /blurb|vessel_upgrade|is_popular|schema cache|PGRST/i.test(error.message)) {
+    const retry = await supabase
+      .from("ss_products")
+      .select(PRODUCT_SELECT_CORE)
+      .eq("slug", slug)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (retry.error || !retry.data) return null;
+    return mapProduct(retry.data as ProductRow);
+  }
+
+  return null;
 }
 
 export async function getProductById(id: string): Promise<SsProduct | null> {
   const supabase = client();
   if (!supabase) return null;
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("ss_products")
-    .select("*")
+    .select(PRODUCT_SELECT_FULL)
     .eq("id", id)
     .maybeSingle();
-  return data ? mapProduct(data as ProductRow) : null;
+  if (!error && data) return mapProduct(data as ProductRow);
+  if (error && /blurb|vessel_upgrade|is_popular|schema cache|PGRST/i.test(error.message)) {
+    const retry = await supabase
+      .from("ss_products")
+      .select(PRODUCT_SELECT_CORE)
+      .eq("id", id)
+      .maybeSingle();
+    if (retry.error || !retry.data) return null;
+    return mapProduct(retry.data as ProductRow);
+  }
+  return null;
 }
 
 /** Available vessels for sale (active + qty > 0). Includes held qty for accuracy when includeHeld=false for display. */

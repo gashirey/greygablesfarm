@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { OrderCopyPanel } from "@/components/admin/OrderCopyPanel";
 import { SiteAppearancePanel } from "@/components/admin/SiteAppearancePanel";
 import { SiteContentPanel } from "@/components/admin/SiteContentPanel";
 import { SiteMediaEditor } from "@/components/admin/SiteMediaEditor";
@@ -12,6 +13,7 @@ const TABS = [
   { id: "appearance", label: "Colors & layout" },
   { id: "typography", label: "Typography" },
   { id: "content", label: "Wording" },
+  { id: "order", label: "Order flowers" },
   { id: "nav", label: "Menu" },
 ] as const;
 
@@ -46,6 +48,7 @@ export function SiteEditor() {
       {tab === "appearance" && <SiteAppearancePanel />}
       {tab === "typography" && <SiteTypographyPanel />}
       {tab === "content" && <SiteContentPanel />}
+      {tab === "order" && <OrderCopyPanel />}
       {tab === "nav" && <SiteNavPanel />}
     </div>
   );

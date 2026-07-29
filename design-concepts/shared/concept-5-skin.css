@@ -1,0 +1,282 @@
+/* Shared skin for Concept 5 / 5b / 5c Phase 2 pages */
+:root {
+  --cream: #f2ece9;
+  --surface: #fff7f4;
+  --bark: #3f3836;
+  --stone: #857a75;
+  --border: #e8ddd6;
+  --focus: #3f3836;
+  --parchment: #e8ddd6;
+  --white: #fff7f4;
+  --salmon: #e4b8ae;
+  --sage: #7a9480;
+}
+
+body.skin-5 {
+  background: var(--cream);
+  color: var(--bark);
+}
+
+.skin-5 .frame {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1rem 1.15rem 4rem;
+}
+
+.skin-5 .top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--border);
+}
+.skin-5 .brand {
+  font-family: var(--font-serif);
+  font-size: 1.15rem;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  font-weight: 500;
+}
+.skin-5 .top-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.1rem;
+  font-size: 0.8rem;
+}
+.skin-5 .top-links a {
+  color: var(--stone);
+  text-decoration: none;
+}
+.skin-5 .top-links a.is-current {
+  color: var(--bark);
+  border-bottom: 1px solid var(--bark);
+}
+
+.skin-5 .intro {
+  margin-bottom: 1.35rem;
+}
+.skin-5 .intro .eyebrow {
+  margin: 0 0 0.4rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--stone);
+}
+.skin-5 .intro h1 {
+  margin: 0 0 0.65rem;
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: clamp(1.85rem, 3.5vw, 2.45rem);
+  line-height: 1.12;
+}
+.skin-5 .intro p {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--stone);
+}
+.skin-5 .intro p + p {
+  margin-top: 0.45rem;
+}
+
+.skin-5 .scale-block {
+  margin: 0 0 1.5rem;
+}
+.skin-5 .scale-note {
+  margin: 1rem 0 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--stone);
+}
+
+.skin-5 .gg-size-card {
+  background: var(--surface);
+  border-color: var(--border);
+}
+.skin-5 .gg-size-card-name {
+  font-size: 1.25rem;
+}
+.skin-5 .gg-size-card-blurb {
+  font-size: 0.82rem;
+}
+
+.skin-5 [data-presentations] {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.55rem;
+}
+@media (min-width: 640px) {
+  .skin-5 [data-presentations] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.skin-5 [data-presentations] .gg-option + .gg-option {
+  margin-top: 0;
+}
+
+.skin-5 .quiet-rule {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 0 0 1.35rem;
+}
+
+.skin-5 .gg-section {
+  padding: 0 0 1.25rem;
+}
+.skin-5 .gg-eyebrow {
+  margin: 0 0 0.2rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--stone);
+}
+.skin-5 .gg-section-head h2 {
+  margin: 0 0 0.3rem;
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 1.2rem;
+}
+.skin-5 .gg-lede {
+  margin: 0 0 0.65rem;
+  color: var(--stone);
+  font-size: 0.88rem;
+  max-width: none;
+}
+.skin-5 .gg-option {
+  background: var(--surface);
+  border-color: var(--border);
+  padding: 0.7rem 0.8rem;
+}
+.skin-5 .gg-option.is-selected {
+  padding: calc(0.7rem - 1px) calc(0.8rem - 1px) calc(0.7rem - 1px)
+    calc(0.8rem - 1px + 1.35rem);
+}
+.skin-5 .gg-option-name {
+  font-size: 1.1rem;
+}
+.skin-5 .gg-chip {
+  background: var(--surface);
+  border-color: var(--border);
+}
+.skin-5 .gg-field input,
+.skin-5 .gg-field textarea,
+.skin-5 .gg-field select,
+.skin-5 [data-card-message],
+.skin-5 [data-designer-notes],
+.skin-5 [data-inspiration-note] {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.skin-5 .summary-quiet {
+  display: none;
+  padding: 1.15rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+@media (min-width: 900px) {
+  .skin-5 .summary-quiet {
+    display: block;
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+  }
+}
+
+.skin-5 .layout-split {
+  display: grid;
+  gap: 1.5rem;
+}
+@media (min-width: 900px) {
+  .skin-5 .layout-split {
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 2rem;
+    align-items: start;
+  }
+}
+
+.skin-5 .gg-btn-primary {
+  background: var(--bark);
+  border-color: var(--bark);
+}
+.skin-5 .gg-btn-ghost {
+  border-color: var(--border);
+}
+.skin-5 .gg-recap {
+  background: var(--surface);
+  border-color: var(--border);
+}
+.skin-5 .gg-arrive-card {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+/* Gallery strip */
+.skin-5 .gallery-block {
+  margin: 0.5rem 0 0;
+}
+.skin-5 .gallery-head h2 {
+  margin: 0 0 0.45rem;
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 1.15rem;
+}
+.skin-5 .gallery-shell {
+  position: relative;
+  margin-top: 0.75rem;
+}
+.skin-5 .gg-gallery-strip {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.35rem;
+  scrollbar-width: thin;
+}
+.skin-5 .gg-gallery-strip .gg-gallery-item {
+  flex: 0 0 calc((100% - 1rem) / 3);
+  aspect-ratio: 4 / 5;
+  scroll-snap-align: start;
+  border-radius: 0;
+}
+@media (min-width: 640px) {
+  .skin-5 .gg-gallery-strip .gg-gallery-item {
+    flex-basis: calc((100% - 1.5rem) / 4);
+  }
+}
+@media (max-width: 479px) {
+  .skin-5 .gg-gallery-strip .gg-gallery-item {
+    flex-basis: calc((100% - 0.5rem) / 2.15);
+  }
+}
+.skin-5 .strip-nav button {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 2.1rem;
+  height: 2.1rem;
+  border: 1px solid rgba(63, 56, 54, 0.18);
+  background: rgba(255, 247, 244, 0.9);
+  color: var(--bark);
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 1.15rem;
+  line-height: 1;
+  padding: 0;
+}
+.skin-5 .strip-nav button[data-strip-prev] {
+  left: 0.45rem;
+}
+.skin-5 .strip-nav button[data-strip-next] {
+  right: 0.45rem;
+}
+.skin-5 .strip-nav button:disabled {
+  opacity: 0;
+  pointer-events: none;
+}

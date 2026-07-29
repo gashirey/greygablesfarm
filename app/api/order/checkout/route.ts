@@ -11,8 +11,13 @@ import {
   getVesselById,
   lookupZoneByZip,
 } from "@/lib/order/queries";
+import { enrichScaleProduct } from "@/lib/order/scales";
 import { createReservation, releaseExpiredReservations } from "@/lib/order/reservations";
-import type { CheckoutInput, FulfillmentType } from "@/lib/order/types";
+import type {
+  CheckoutInput,
+  FulfillmentType,
+  PresentationMode,
+} from "@/lib/order/types";
 import { isStripeConfigured } from "@/lib/stripe/config";
 import { getStripe } from "@/lib/stripe/server";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -59,9 +64,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
 
+  const presentationRaw =
+    typeof payload.presentation === "string" ? payload.presentation.trim() : "";
+  const presentation: PresentationMode | undefined =
+    presentationRaw === "curated-keepsake" ||
+    presentationRaw === "signature-glass"
+      ? presentationRaw
+      : undefined;
+
   const input: CheckoutInput = {
     productSlug:
       typeof payload.productSlug === "string" ? payload.productSlug.trim() : "",
+    presentation,
     vesselId:
       typeof payload.vesselId === "string" ? payload.vesselId.trim() : null,
     reservationId:
@@ -115,6 +129,8 @@ export async function POST(request: Request) {
         : null,
     notes:
       typeof payload.notes === "string" ? payload.notes.trim() : null,
+    isGift: Boolean(payload.isGift),
+    hidePricing: Boolean(payload.hidePricing),
   };
 
   const clientClaimedTotal =
@@ -152,13 +168,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const product = await getProductBySlug(input.productSlug);
-  if (!product) {
+  const productRaw = await getProductBySlug(input.productSlug);
+  if (!productRaw) {
     return NextResponse.json(
       { error: "That arrangement is not available." },
       { status: 400 },
     );
   }
+  const product = enrichScaleProduct(productRaw);
 
   if (input.fulfillmentType === "delivery" && !product.allowsDelivery) {
     return NextResponse.json(
@@ -177,43 +194,50 @@ export async function POST(request: Request) {
 
   let vessel = null;
   let hasActiveVesselHold = false;
-  if (product.requiresVessel) {
-    if (!input.vesselId) {
+  const needsVesselPick = product.requiresVessel;
+  if (needsVesselPick || input.vesselId) {
+    if (needsVesselPick && !input.vesselId) {
       return NextResponse.json(
         { error: "Please select a vessel." },
         { status: 400 },
       );
     }
-    vessel = await getVesselById(input.vesselId);
-    if (!vessel || !vessel.isActive) {
-      return NextResponse.json(
-        { error: "That vessel is no longer available." },
-        { status: 400 },
-      );
-    }
+    if (input.vesselId) {
+      vessel = await getVesselById(input.vesselId);
+      if (!vessel || !vessel.isActive) {
+        return NextResponse.json(
+          { error: "That vessel is no longer available." },
+          { status: 400 },
+        );
+      }
 
-    if (input.reservationId) {
-      const { data: hold } = await supabase
-        .from("ss_reservations")
-        .select("id, vessel_id, status, expires_at")
-        .eq("id", input.reservationId)
-        .eq("status", "held")
-        .maybeSingle();
-      const now = new Date().toISOString();
-      hasActiveVesselHold = Boolean(
-        hold &&
-          hold.expires_at >= now &&
-          hold.vessel_id === input.vesselId,
-      );
-    }
+      if (input.reservationId) {
+        const { data: hold } = await supabase
+          .from("ss_reservations")
+          .select("id, vessel_id, status, expires_at")
+          .eq("id", input.reservationId)
+          .eq("status", "held")
+          .maybeSingle();
+        const now = new Date().toISOString();
+        hasActiveVesselHold = Boolean(
+          hold &&
+            hold.expires_at >= now &&
+            hold.vessel_id === input.vesselId,
+        );
+      }
 
-    if (!hasActiveVesselHold && vessel.qtyOnHand < 1) {
-      return NextResponse.json(
-        { error: "That vessel is no longer available." },
-        { status: 400 },
-      );
+      if (!hasActiveVesselHold && vessel.qtyOnHand < 1) {
+        return NextResponse.json(
+          { error: "That vessel is no longer available." },
+          { status: 400 },
+        );
+      }
     }
   }
+
+  const resolvedPresentation: PresentationMode =
+    input.presentation ??
+    (vessel || product.requiresVessel ? "curated-keepsake" : "signature-glass");
 
   let deliveryFeeCents = 0;
   let deliveryZoneId: string | null = null;
@@ -263,6 +287,7 @@ export async function POST(request: Request) {
   try {
     pricing = computeOrderPricing({
       product,
+      presentation: resolvedPresentation,
       vessel,
       deliveryFeeCents,
       taxCents: 0,
@@ -275,38 +300,61 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: order, error: orderErr } = await supabase
+  const orderBase = {
+    product_id: product.id,
+    vessel_id: vessel?.id ?? null,
+    fulfillment_type: input.fulfillmentType,
+    fulfillment_date: input.fulfillmentDate,
+    pickup_window_id:
+      input.fulfillmentType === "pickup" ? input.pickupWindowId : null,
+    delivery_zone_id: deliveryZoneId,
+    buyer_name: input.buyerName,
+    buyer_email: input.buyerEmail.toLowerCase(),
+    buyer_phone: input.buyerPhone,
+    recipient_name: input.recipientName,
+    recipient_phone: input.recipientPhone,
+    address_street: input.addressStreet,
+    address_city: input.addressCity,
+    address_state: input.addressState ?? "VA",
+    address_zip: input.addressZip?.slice(0, 5) ?? null,
+    delivery_instructions: input.deliveryInstructions,
+    card_message: input.cardMessage,
+    notes: input.notes,
+    arrangement_cents: pricing.arrangementCents,
+    vessel_cents: pricing.vesselCents,
+    delivery_fee_cents: pricing.deliveryFeeCents,
+    tax_cents: pricing.taxCents,
+    total_cents: pricing.totalCents,
+    payment_status: "pending",
+    fulfillment_status: "checkout_started",
+  };
+
+  let { data: order, error: orderErr } = await supabase
     .from("ss_orders")
     .insert({
-      product_id: product.id,
-      vessel_id: vessel?.id ?? null,
-      fulfillment_type: input.fulfillmentType,
-      fulfillment_date: input.fulfillmentDate,
-      pickup_window_id:
-        input.fulfillmentType === "pickup" ? input.pickupWindowId : null,
-      delivery_zone_id: deliveryZoneId,
-      buyer_name: input.buyerName,
-      buyer_email: input.buyerEmail.toLowerCase(),
-      buyer_phone: input.buyerPhone,
-      recipient_name: input.recipientName,
-      recipient_phone: input.recipientPhone,
-      address_street: input.addressStreet,
-      address_city: input.addressCity,
-      address_state: input.addressState ?? "VA",
-      address_zip: input.addressZip?.slice(0, 5) ?? null,
-      delivery_instructions: input.deliveryInstructions,
-      card_message: input.cardMessage,
-      notes: input.notes,
-      arrangement_cents: pricing.arrangementCents,
-      vessel_cents: pricing.vesselCents,
-      delivery_fee_cents: pricing.deliveryFeeCents,
-      tax_cents: pricing.taxCents,
-      total_cents: pricing.totalCents,
-      payment_status: "pending",
-      fulfillment_status: "checkout_started",
+      ...orderBase,
+      presentation: resolvedPresentation,
+      is_gift: Boolean(input.isGift),
+      hide_pricing: Boolean(input.hidePricing),
     })
     .select("id")
     .single();
+
+  // Before migration 032, presentation / gift columns may be missing
+  if (
+    orderErr &&
+    /presentation|is_gift|hide_pricing|schema cache|PGRST204/i.test(
+      orderErr.message ?? "",
+    )
+  ) {
+    const retry = await supabase
+      .from("ss_orders")
+      .insert(orderBase)
+      .select("id")
+      .single();
+    order = retry.data;
+    orderErr = retry.error;
+  }
 
   if (orderErr || !order) {
     console.error("[checkout] order insert", orderErr);

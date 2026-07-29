@@ -1,5 +1,6 @@
 import type { DesignDirectionId } from "@/lib/design-lab/directions";
 import type { HeroFrame } from "@/lib/content";
+import type { OrderPageCopy } from "@/lib/order/copy";
 import type { HeroLayout } from "@/lib/snapshots/types";
 
 export type SiteColorOverrides = Partial<{
@@ -63,6 +64,8 @@ export type SiteContentOverrides = {
   availabilityPage?: {
     enabled?: boolean;
   };
+  /** Designer's Choice /order page chrome — most strings editable in admin */
+  orderPage?: Partial<OrderPageCopy>;
 };
 
 export type TypographySectionId =
@@ -159,6 +162,7 @@ export type ResolvedSiteCopy = {
   availabilityPage: {
     enabled: boolean;
   };
+  orderPage: OrderPageCopy;
 };
 
 export type ResolvedSiteTheme = {

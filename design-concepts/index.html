@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Grey Gables — Designer's Choice Concepts (Phase 2)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Karla:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="shared/base.css" />
+    <style>
+      body { background: #f2ece9; }
+      .wrap { max-width: 1100px; margin: 0 auto; padding: 2.5rem 1.25rem 5rem; }
+      .mast { max-width: 40rem; margin-bottom: 2.5rem; }
+      .mast .kicker {
+        margin: 0 0 0.65rem; font-size: 0.72rem; letter-spacing: 0.14em;
+        text-transform: uppercase; color: var(--stone);
+      }
+      .mast h1 {
+        margin: 0 0 0.85rem; font-family: var(--font-serif); font-weight: 500;
+        font-size: clamp(2.2rem, 4.5vw, 3.2rem); line-height: 1.1;
+      }
+      .mast .lead { margin: 0; color: var(--stone); font-size: 1.05rem; }
+      .recommend {
+        margin: 1.5rem 0 0; padding: 1rem 1.1rem; border: 1px solid #e8ddd6;
+        background: #fff7f4; max-width: 40rem;
+      }
+      .recommend strong { font-family: var(--font-serif); font-size: 1.15rem; font-weight: 500; }
+      .recommend p { margin: 0.4rem 0 0; color: var(--stone); font-size: 0.92rem; }
+      .cards { display: grid; gap: 1rem; }
+      @media (min-width: 800px) { .cards { grid-template-columns: 1fr 1fr; } }
+      .card {
+        border: 1px solid #e8ddd6; background: #fff7f4; padding: 1.25rem 1.3rem;
+        display: grid; gap: 0.55rem;
+      }
+      .card .num {
+        margin: 0; font-size: 0.7rem; letter-spacing: 0.12em;
+        text-transform: uppercase; color: var(--stone);
+      }
+      .card h2 {
+        margin: 0; font-family: var(--font-serif); font-weight: 500; font-size: 1.45rem;
+      }
+      .card p { margin: 0; color: var(--stone); font-size: 0.92rem; }
+      .card .actions { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.35rem; }
+      .card .gg-btn { width: auto; padding-inline: 1rem; margin-top: 0; }
+      .compare { margin-top: 3rem; padding-top: 2rem; border-top: 1px solid #e8ddd6; }
+      .compare h2 {
+        font-family: var(--font-serif); font-weight: 500; font-size: 1.7rem; margin: 0 0 0.75rem;
+      }
+      .table-wrap { overflow-x: auto; border: 1px solid #e8ddd6; background: #fff7f4; }
+      table { width: 100%; border-collapse: collapse; font-size: 0.88rem; min-width: 680px; }
+      th, td { text-align: left; padding: 0.75rem 0.9rem; border-bottom: 1px solid #e8ddd6; vertical-align: top; }
+      th {
+        font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase;
+        color: var(--stone); background: #f7f1ec; font-weight: 500;
+      }
+      footer { margin-top: 2.5rem; color: var(--stone); font-size: 0.85rem; }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <header class="mast">
+        <p class="kicker">Phase 2 · Split experience</p>
+        <h1>Grey Gables Designer's Choice Concepts</h1>
+        <p class="lead">
+          Each concept is now two pages: create the arrangement, then delivery &amp;
+          personal details. Checkout (Page 3) remains future production work.
+        </p>
+        <div class="recommend">
+          <strong>Recommendation after the split: Concept 5c</strong>
+          <p>
+            Scale photo cards + calm presentation + strip gallery on Page 1, then a
+            clear logistics page. Best match for live greygables.com and the
+            “commission, then plan delivery” journey. Compare 5 / 5b only if you want
+            a different summary placement.
+          </p>
+        </div>
+      </header>
+
+      <section class="cards" aria-label="Concepts">
+        <article class="card">
+          <p class="num">Concept 01</p>
+          <h2>Editorial Story</h2>
+          <p>Magazine voice; gallery after composition.</p>
+          <div class="actions">
+            <a class="gg-btn gg-btn-primary" href="concept-1-editorial.html">Page 1</a>
+            <a class="gg-btn gg-btn-ghost" href="concept-1-editorial-delivery.html">Page 2</a>
+          </div>
+        </article>
+
+        <article class="card">
+          <p class="num">Concept 02</p>
+          <h2>Calm Guided</h2>
+          <p>Numbered quiet sections on Page 1; logistics on Page 2.</p>
+          <div class="actions">
+            <a class="gg-btn gg-btn-primary" href="concept-2-guided.html">Page 1</a>
+            <a class="gg-btn gg-btn-ghost" href="concept-2-guided-delivery.html">Page 2</a>
+          </div>
+        </article>
+
+        <article class="card">
+          <p class="num">Concept 03</p>
+          <h2>Gallery First</h2>
+          <p>Trust gallery before choices; then compose and continue.</p>
+          <div class="actions">
+            <a class="gg-btn gg-btn-primary" href="concept-3-gallery.html">Page 1</a>
+            <a class="gg-btn gg-btn-ghost" href="concept-3-gallery-delivery.html">Page 2</a>
+          </div>
+        </article>
+
+        <article class="card">
+          <p class="num">Concept 04</p>
+          <h2>Refined Configurator</h2>
+          <p>Dark gallery band + composition column; sticky summary.</p>
+          <div class="actions">
+            <a class="gg-btn gg-btn-primary" href="concept-4-configurator.html">Page 1</a>
+            <a class="gg-btn gg-btn-ghost" href="concept-4-configurator-delivery.html">Page 2</a>
+          </div>
+        </article>
+
+        <article class="card">
+          <p class="num">Concept 05</p>
+          <h2>Quiet Luxury</h2>
+          <p>Restrained; summary with the form column.</p>
+          <div class="actions">
+            <a class="gg-btn gg-btn-primary" href="concept-5-luxury.html">Page 1</a>
+            <a class="gg-btn gg-btn-ghost" href="concept-5-luxury-delivery.html">Page 2</a>
+          </div>
+        </article>
+
+        <article class="card">
+          <p class="num">Concept 05b</p>
+          <h2>Quiet Luxury · Rail</h2>
+          <p>Same as 5 with always-visible summary from the top.</p>
+          <div class="actions">
+            <a class="gg-btn gg-btn-primary" href="concept-5b-luxury-rail.html">Page 1</a>
+            <a class="gg-btn gg-btn-ghost" href="concept-5b-luxury-rail-delivery.html">Page 2</a>
+          </div>
+        </article>
+
+        <article class="card">
+          <p class="num">Concept 05c · Lead</p>
+          <h2>Scale Photo Cards</h2>
+          <p>Classic / Signature / Grand photo chooser, strip gallery, tight presentation.</p>
+          <div class="actions">
+            <a class="gg-btn gg-btn-primary" href="concept-5c-scale-cards.html">Page 1</a>
+            <a class="gg-btn gg-btn-ghost" href="concept-5c-scale-cards-delivery.html">Page 2</a>
+          </div>
+        </article>
+      </section>
+
+      <section class="compare">
+        <h2>Flow (all concepts)</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Page</th>
+                <th>Answers</th>
+                <th>Contains</th>
+                <th>CTA</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>1 · Create</td>
+                <td>What should we create?</td>
+                <td>Scale, presentation, gallery, optional inspiration, sticky subtotal</td>
+                <td>Continue with Your Arrangement</td>
+              </tr>
+              <tr>
+                <td>2 · Delivery</td>
+                <td>Where / when / what should we know?</td>
+                <td>Delivery or pickup, gift/card, designer notes, review</td>
+                <td>Review &amp; Complete Order → Page 3 later</td>
+              </tr>
+              <tr>
+                <td>3 · Checkout</td>
+                <td>Pay</td>
+                <td>Not designed in this phase</td>
+                <td>—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer>
+        <p>Grey Gables Farm · Phase 2 prototypes · July 2026 · Not production</p>
+      </footer>
+    </main>
+  </body>
+</html>

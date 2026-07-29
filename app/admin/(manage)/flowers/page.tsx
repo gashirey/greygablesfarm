@@ -1,14 +1,6 @@
-import { FlowerTiersManager } from "@/components/admin/FlowerTiersManager";
-import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { redirect } from "next/navigation";
 
-export default function AdminFlowersPage() {
-  if (!isSupabaseConfigured()) {
-    return (
-      <p className="text-sm text-bark">
-        Configure Supabase env vars to manage the flowers catalog.
-      </p>
-    );
-  }
-
-  return <FlowerTiersManager />;
+/** Legacy flower_tiers admin → self-service order products */
+export default function AdminFlowersRedirectPage() {
+  redirect("/admin/order/products");
 }

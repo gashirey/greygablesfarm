@@ -79,13 +79,16 @@ export function SsProductsManager() {
               slug: "",
               name: "",
               description: "",
+              blurb: "",
               base_price_cents: 15000,
+              vessel_upgrade_cents: 0,
               capacity_cost: 1,
               requires_vessel: false,
               allows_delivery: true,
               allows_pickup: true,
               image_url: "",
               image_alt: "",
+              is_popular: false,
               is_active: true,
               sort_order: (rows.length + 1) * 10,
             })
@@ -107,10 +110,18 @@ export function SsProductsManager() {
                 <span className="text-stone">
                   ${(r.base_price_cents / 100).toFixed(0)}
                 </span>
+                {r.is_popular ? (
+                  <span className="ml-2 text-xs font-normal text-stone">
+                    · most sent
+                  </span>
+                ) : null}
               </p>
               <p className="text-xs text-stone">
                 /{r.slug}
-                {r.requires_vessel ? " · vessel required" : ""}
+                {(r.vessel_upgrade_cents ?? 0) > 0
+                  ? ` · vessel +$${(Number(r.vessel_upgrade_cents) / 100).toFixed(0)}`
+                  : ""}
+                {r.requires_vessel ? " · vessel pick required" : ""}
                 {!r.is_active ? " · inactive" : ""}
               </p>
             </div>
@@ -162,6 +173,20 @@ export function SsProductsManager() {
               />
             </label>
             <label className="text-sm">
+              Curated vessel upgrade (cents)
+              <input
+                type="number"
+                className="input mt-1 w-full"
+                value={draft.vessel_upgrade_cents ?? 0}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    vessel_upgrade_cents: Number(e.target.value) || 0,
+                  })
+                }
+              />
+            </label>
+            <label className="text-sm">
               Capacity cost
               <input
                 type="number"
@@ -176,6 +201,15 @@ export function SsProductsManager() {
               />
             </label>
           </div>
+          <label className="block text-sm">
+            Scale card blurb
+            <textarea
+              className="input mt-1 w-full resize-y"
+              rows={2}
+              value={draft.blurb ?? ""}
+              onChange={(e) => setDraft({ ...draft, blurb: e.target.value })}
+            />
+          </label>
           <label className="block text-sm">
             Description
             <textarea
@@ -203,12 +237,22 @@ export function SsProductsManager() {
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
+                checked={Boolean(draft.is_popular)}
+                onChange={(e) =>
+                  setDraft({ ...draft, is_popular: e.target.checked })
+                }
+              />
+              Most sent (default selected)
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
                 checked={draft.requires_vessel}
                 onChange={(e) =>
                   setDraft({ ...draft, requires_vessel: e.target.checked })
                 }
               />
-              Requires vessel
+              Requires vessel pick
             </label>
             <label className="flex items-center gap-2">
               <input

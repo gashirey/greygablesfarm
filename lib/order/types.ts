@@ -16,18 +16,25 @@ export type ReservationStatus = "held" | "committed" | "released";
 
 export type LineItemKind = "arrangement" | "vessel" | "delivery" | "tax" | "other";
 
+export type PresentationMode = "signature-glass" | "curated-keepsake";
+
 export type SsProduct = {
   id: string;
   slug: string;
   name: string;
   description: string;
+  /** Short scale card blurb (editable) */
+  blurb: string;
   basePriceCents: number;
+  /** Upgrade when Curated Keepsake Vessel is selected (by scale) */
+  vesselUpgradeCents: number;
   capacityCost: number;
   requiresVessel: boolean;
   allowsDelivery: boolean;
   allowsPickup: boolean;
   imageUrl: string;
   imageAlt: string;
+  isPopular: boolean;
   isActive: boolean;
   sortOrder: number;
 };
@@ -90,6 +97,8 @@ export type PriceBreakdown = {
 
 export type CheckoutInput = {
   productSlug: string;
+  /** Glass (included) vs curated keepsake upgrade */
+  presentation?: PresentationMode;
   vesselId?: string | null;
   /** Soft vessel hold created when leaving the vessel step. */
   reservationId?: string | null;
@@ -108,6 +117,8 @@ export type CheckoutInput = {
   buyerPhone: string;
   cardMessage?: string | null;
   notes?: string | null;
+  isGift?: boolean;
+  hidePricing?: boolean;
 };
 
 export const FULFILLMENT_STATUS_LABELS: Record<FulfillmentStatus, string> = {

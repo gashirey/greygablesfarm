@@ -52,11 +52,6 @@ export async function listFlowerTiers(): Promise<FlowerTier[]> {
   return sortTiers(rows.map(mapFlowerTierRow));
 }
 
-/** Admin catalog — includes hidden. */
-export async function listFlowerTiersAdmin(): Promise<FlowerTierRow[] | null> {
-  return fetchTierRows({ includeHidden: true });
-}
-
 export async function getFlowerTierBySlug(
   slug: string | null | undefined,
 ): Promise<FlowerTier> {

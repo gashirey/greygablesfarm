@@ -1,5 +1,6 @@
 import type {
   LineItemKind,
+  PresentationMode,
   PriceBreakdown,
   SsProduct,
   SsVessel,
@@ -11,20 +12,46 @@ import type {
  */
 export function computeOrderPricing(input: {
   product: SsProduct;
+  presentation?: PresentationMode | null;
   vessel?: SsVessel | null;
   deliveryFeeCents?: number;
   taxCents?: number;
 }): PriceBreakdown {
-  const arrangementCents = input.product.basePriceCents;
-  const vesselCents = input.product.requiresVessel
-    ? (input.vessel?.priceAdjustmentCents ?? 0)
-    : 0;
-  const deliveryFeeCents = Math.max(0, input.deliveryFeeCents ?? 0);
-  const taxCents = Math.max(0, input.taxCents ?? 0);
+  const presentation: PresentationMode =
+    input.presentation ??
+    (input.product.requiresVessel ? "curated-keepsake" : "signature-glass");
 
-  if (input.product.requiresVessel && !input.vessel) {
+  const arrangementCents = input.product.basePriceCents;
+  let vesselCents = 0;
+  let vesselLabel = "";
+
+  if (presentation === "curated-keepsake") {
+    if (input.vessel) {
+      vesselCents = input.vessel.priceAdjustmentCents;
+      vesselLabel =
+        vesselCents > 0
+          ? `${input.vessel.name} (+$${vesselCents / 100})`
+          : `${input.vessel.name} (included)`;
+    } else {
+      vesselCents = input.product.vesselUpgradeCents;
+      vesselLabel =
+        vesselCents > 0
+          ? `Curated Keepsake Vessel (+$${vesselCents / 100})`
+          : "Curated Keepsake Vessel";
+    }
+  }
+
+  // Legacy: product still marked requires_vessel and no presentation passed
+  if (
+    input.product.requiresVessel &&
+    !input.presentation &&
+    !input.vessel
+  ) {
     throw new Error("A vessel selection is required for this arrangement.");
   }
+
+  const deliveryFeeCents = Math.max(0, input.deliveryFeeCents ?? 0);
+  const taxCents = Math.max(0, input.taxCents ?? 0);
 
   const lines: PriceBreakdown["lines"] = [
     {
@@ -35,13 +62,10 @@ export function computeOrderPricing(input: {
     },
   ];
 
-  if (input.product.requiresVessel && input.vessel) {
+  if (presentation === "curated-keepsake" && vesselCents >= 0 && vesselLabel) {
     lines.push({
       kind: "vessel",
-      label:
-        vesselCents > 0
-          ? `${input.vessel.name} (+$${vesselCents / 100})`
-          : `${input.vessel.name} (included)`,
+      label: vesselLabel,
       quantity: 1,
       unitAmountCents: vesselCents,
     });

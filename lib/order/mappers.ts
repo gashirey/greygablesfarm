@@ -11,13 +11,16 @@ export type ProductRow = {
   slug: string;
   name: string;
   description: string;
+  blurb?: string | null;
   base_price_cents: number;
+  vessel_upgrade_cents?: number | null;
   capacity_cost: number;
   requires_vessel: boolean;
   allows_delivery: boolean;
   allows_pickup: boolean;
   image_url: string;
   image_alt: string;
+  is_popular?: boolean | null;
   is_active: boolean;
   sort_order: number;
 };
@@ -49,13 +52,16 @@ export function mapProduct(row: ProductRow): SsProduct {
     slug: row.slug,
     name: row.name,
     description: row.description,
+    blurb: (row.blurb ?? row.description ?? "").trim(),
     basePriceCents: row.base_price_cents,
+    vesselUpgradeCents: row.vessel_upgrade_cents ?? 0,
     capacityCost: row.capacity_cost,
     requiresVessel: row.requires_vessel,
     allowsDelivery: row.allows_delivery,
     allowsPickup: row.allows_pickup,
     imageUrl: row.image_url,
     imageAlt: row.image_alt || row.name,
+    isPopular: Boolean(row.is_popular),
     isActive: row.is_active,
     sortOrder: row.sort_order,
   };

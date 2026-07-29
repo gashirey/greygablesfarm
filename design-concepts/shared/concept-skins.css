@@ -1,0 +1,182 @@
+/* Phase 2 skins for concepts 1–4 — distinct chrome, shared structure */
+.frame {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1rem 1.25rem 4rem;
+}
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--parchment);
+}
+.brand {
+  font-family: var(--font-serif);
+  font-size: 1.2rem;
+  text-decoration: none;
+}
+.top-links {
+  font-size: 0.82rem;
+  color: var(--stone);
+}
+.top-links a {
+  color: inherit;
+}
+.intro {
+  margin-bottom: 1.5rem;
+}
+.intro .eyebrow {
+  margin: 0 0 0.4rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--stone);
+}
+.intro h1 {
+  margin: 0 0 0.65rem;
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: clamp(1.9rem, 3.5vw, 2.6rem);
+  line-height: 1.12;
+}
+.intro p {
+  margin: 0 0 0.45rem;
+  color: var(--stone);
+  font-size: 0.98rem;
+}
+.layout-split {
+  display: grid;
+  gap: 1.5rem;
+}
+@media (min-width: 900px) {
+  .layout-split {
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 2rem;
+    align-items: start;
+  }
+}
+.summary-quiet {
+  display: none;
+  border: 1px solid var(--parchment);
+  background: var(--white);
+  padding: 1.15rem;
+}
+@media (min-width: 900px) {
+  .summary-quiet {
+    display: block;
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+  }
+}
+.gg-section {
+  padding: 0 0 1.35rem;
+}
+.gg-eyebrow {
+  margin: 0 0 0.25rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--stone);
+}
+.gg-section-head h2 {
+  margin: 0 0 0.4rem;
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 1.35rem;
+}
+.gg-lede {
+  margin: 0 0 0.75rem;
+  color: var(--stone);
+  font-size: 0.9rem;
+}
+.gallery-block {
+  margin: 1.5rem 0 0;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--parchment);
+}
+.gallery-block h2 {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 1.35rem;
+  margin: 0 0 0.5rem;
+}
+
+/* Concept 1 — editorial cream */
+.skin-1 {
+  background: #f7f3ef;
+  color: #3a3834;
+}
+.skin-1 .intro h1 {
+  font-style: italic;
+}
+
+/* Concept 2 — calm guided */
+.skin-2 {
+  background: #f4f0eb;
+}
+.skin-2 .gg-section-head {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.85rem;
+}
+.skin-2 [data-order-shell] {
+  counter-reset: guide;
+}
+.skin-2 [data-order-shell] .gg-section {
+  counter-increment: guide;
+}
+.skin-2 [data-order-shell] .gg-section-head::before {
+  content: counter(guide);
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid #d7cdc3;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  color: var(--stone);
+  margin-top: 0.15rem;
+}
+
+/* Concept 3 — gallery first dark band */
+.skin-3 {
+  background: #f7f3ef;
+}
+.skin-3 .gallery-first {
+  background: #1f1d1b;
+  color: #f4efe8;
+  margin: 0 -1.25rem 1.5rem;
+  padding: 1.5rem 1.25rem;
+  border: 0;
+}
+.skin-3 .gallery-first .gg-lede {
+  color: rgba(244, 239, 232, 0.75);
+}
+.skin-3 .gallery-first .gg-label {
+  background: rgba(31, 29, 27, 0.75);
+  color: #f4efe8;
+}
+
+/* Concept 4 — configurator split feel */
+.skin-4 {
+  background: #f6f1ec;
+}
+.skin-4 .gallery-block {
+  background: #2c2926;
+  color: #f4efe8;
+  margin: 0 0 1.5rem;
+  padding: 1.25rem;
+  border: 0;
+}
+.skin-4 .gallery-block .gg-lede {
+  color: rgba(244, 239, 232, 0.75);
+}
+.skin-4 .gallery-block .gg-label {
+  background: rgba(44, 41, 38, 0.8);
+  color: #f4efe8;
+}
