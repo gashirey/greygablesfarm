@@ -1,5 +1,8 @@
-/** Reservation hold duration before inventory returns. */
-export const RESERVATION_MINUTES = 20;
+/**
+ * Reservation hold duration before inventory returns.
+ * Must be ≥ 30 minutes so it can match Stripe Checkout's minimum `expires_at`.
+ */
+export const RESERVATION_MINUTES = 30;
 
 /** Stripe Checkout metadata kind for flower self-service orders. */
 export const STRIPE_KIND_FLOWER_ORDER = "flower_order";

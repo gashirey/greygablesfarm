@@ -4,6 +4,7 @@ import {
   STRIPE_KIND_BLOOMS,
   STRIPE_KIND_FLOWER_ORDER,
 } from "@/lib/order/config";
+import { releaseReservation } from "@/lib/order/reservations";
 import { getStripeWebhookSecret } from "@/lib/stripe/config";
 import { getStripe } from "@/lib/stripe/server";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -46,12 +47,44 @@ export async function POST(request: Request) {
     if (kind === STRIPE_KIND_FLOWER_ORDER) {
       const orderId =
         session.metadata?.order_id ?? session.client_reference_id ?? null;
-      if (orderId) {
-        await fulfillFlowerOrderPayment({
+      if (!orderId) {
+        console.error("[stripe webhook] flower_order missing order_id");
+        return NextResponse.json({ error: "Missing order_id." }, { status: 500 });
+      }
+
+      // Amount check when tax is off (tax-enabled totals can exceed our pre-tax total)
+      const supabase = createServiceClient();
+      const { data: orderRow } = await supabase
+        .from("ss_orders")
+        .select("total_cents, payment_status")
+        .eq("id", orderId)
+        .maybeSingle();
+
+      if (
+        orderRow &&
+        orderRow.payment_status !== "paid" &&
+        typeof session.amount_total === "number" &&
+        session.amount_total > 0 &&
+        !session.automatic_tax?.enabled &&
+        session.amount_total !== orderRow.total_cents
+      ) {
+        console.error(
+          "[stripe webhook] amount mismatch",
           orderId,
-          stripeSessionId: session.id,
-          paymentIntentId,
-        });
+          session.amount_total,
+          orderRow.total_cents,
+        );
+        return NextResponse.json({ error: "Amount mismatch." }, { status: 500 });
+      }
+
+      const result = await fulfillFlowerOrderPayment({
+        orderId,
+        stripeSessionId: session.id,
+        paymentIntentId,
+      });
+      if (!result.ok) {
+        console.error("[stripe webhook] fulfill failed", orderId);
+        return NextResponse.json({ error: "Fulfill failed." }, { status: 500 });
       }
     } else {
       // Blooms (legacy sessions without kind still use booking_id)
@@ -61,7 +94,6 @@ export async function POST(request: Request) {
         session.client_reference_id ??
         null;
 
-      // Prefer blooms only when not a flower order
       if (bookingId && kind !== STRIPE_KIND_FLOWER_ORDER) {
         const supabase = createServiceClient();
         const { error } = await supabase
@@ -76,6 +108,38 @@ export async function POST(request: Request) {
 
         if (error) {
           console.error("[stripe webhook] update booking", error);
+          return NextResponse.json({ error: "Booking update failed." }, { status: 500 });
+        }
+      }
+    }
+  }
+
+  if (event.type === "checkout.session.expired") {
+    const session = event.data.object;
+    if (session.metadata?.kind === STRIPE_KIND_FLOWER_ORDER) {
+      const orderId =
+        session.metadata?.order_id ?? session.client_reference_id ?? null;
+      if (orderId) {
+        const supabase = createServiceClient();
+        const { data: order } = await supabase
+          .from("ss_orders")
+          .select("id, reservation_id, payment_status")
+          .eq("id", orderId)
+          .maybeSingle();
+
+        if (order && order.payment_status === "pending") {
+          if (order.reservation_id) {
+            await releaseReservation(order.reservation_id);
+          }
+          await supabase
+            .from("ss_orders")
+            .update({
+              payment_status: "cancelled",
+              fulfillment_status: "cancelled",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", orderId)
+            .eq("payment_status", "pending");
         }
       }
     }

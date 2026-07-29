@@ -107,10 +107,13 @@ export function SsZonesManager() {
           >
             <div>
               <p className="font-medium text-bark">
-                {z.name} · ${(z.fee_cents / 100).toFixed(0)}
+                {z.name} · ${(z.fee_cents / 100).toFixed(2)}
               </p>
               <p className="text-xs text-stone">
                 {z.zips.length} ZIPs
+                {z.zips.length
+                  ? ` · ${z.zips.slice(0, 6).join(", ")}${z.zips.length > 6 ? "…" : ""}`
+                  : ""}
                 {!z.is_active ? " · inactive" : ""}
               </p>
             </div>
@@ -139,15 +142,20 @@ export function SsZonesManager() {
             />
           </label>
           <label className="block text-sm">
-            Fee (cents)
+            Delivery fee ($)
             <input
               type="number"
+              min={0}
+              step="0.01"
               className="input mt-1 w-full"
-              value={editing.fee_cents}
+              value={(editing.fee_cents / 100).toFixed(2)}
               onChange={(e) =>
                 setEditing({
                   ...editing,
-                  fee_cents: Number(e.target.value) || 0,
+                  fee_cents: Math.max(
+                    0,
+                    Math.round(Number(e.target.value) * 100) || 0,
+                  ),
                 })
               }
             />

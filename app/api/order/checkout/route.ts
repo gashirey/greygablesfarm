@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { site } from "@/lib/content";
 import {
   isStripeTaxEnabled,
+  RESERVATION_MINUTES,
   STRIPE_KIND_FLOWER_ORDER,
 } from "@/lib/order/config";
 import { computeOrderPricing, assertPricingNotTampered } from "@/lib/order/pricing";
@@ -433,7 +434,10 @@ export async function POST(request: Request) {
       automatic_tax: automaticTax ? { enabled: true } : undefined,
       success_url: `${origin}/order/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/order/cancelled?order_id=${order.id}`,
-      expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+      // Stripe requires ≥ 30 minutes; keep session in lockstep with reservation hold
+      expires_at:
+        Math.floor(Date.now() / 1000) +
+        Math.max(30, RESERVATION_MINUTES) * 60,
     });
 
     if (!session.url) {

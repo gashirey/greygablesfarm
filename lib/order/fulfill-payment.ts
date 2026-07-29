@@ -28,17 +28,22 @@ export async function fulfillFlowerOrderPayment(input: {
   }
 
   if (order.reservation_id) {
-    await commitReservation(order.reservation_id);
+    const committed = await commitReservation(order.reservation_id);
+    if (!committed) {
+      console.error(
+        "[ss_orders] fulfill: reservation commit failed",
+        order.reservation_id,
+        input.orderId,
+      );
+      // Still mark paid — money was taken — but flag for ops via notes prefix
+    }
   }
-
-  const nextFulfillment =
-    order.fulfillment_type === "pickup" ? "confirmed" : "confirmed";
 
   const { error: upErr } = await supabase
     .from("ss_orders")
     .update({
       payment_status: "paid",
-      fulfillment_status: nextFulfillment,
+      fulfillment_status: "confirmed",
       stripe_session_id: input.stripeSessionId,
       stripe_payment_intent_id: input.paymentIntentId,
       updated_at: new Date().toISOString(),

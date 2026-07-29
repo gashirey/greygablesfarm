@@ -170,10 +170,13 @@ export async function PATCH(request: Request) {
     const availability = await listAvailability({ days: 21 });
     const day = availability.find((d) => d.fulfillmentDate === nextDate);
     if (!day || (day.remainingCapacity ?? 0) < 1) {
-      return NextResponse.json(
-        { error: "That date is not available." },
-        { status: 400 },
-      );
+      // Allow keeping the current date even if listAvailability filtered it out
+      if (nextDate !== existing.fulfillment_date) {
+        return NextResponse.json(
+          { error: "That date is not available." },
+          { status: 400 },
+        );
+      }
     }
     patch.fulfillment_date = nextDate;
 
@@ -182,14 +185,14 @@ export async function PATCH(request: Request) {
         typeof body.pickupWindowId === "string"
           ? body.pickupWindowId.trim()
           : existing.pickup_window_id;
-      const win = (day.windows ?? []).find((w) => w.id === windowId);
-      if (!win) {
+      const win = (day?.windows ?? []).find((w) => w.id === windowId);
+      if (!win && nextDate !== existing.fulfillment_date) {
         return NextResponse.json(
           { error: "Please choose a pickup window for that date." },
           { status: 400 },
         );
       }
-      patch.pickup_window_id = win.id;
+      if (win) patch.pickup_window_id = win.id;
     }
   }
 
@@ -202,6 +205,25 @@ export async function PATCH(request: Request) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  // Keep capacity reservation in sync when date/window changes
+  if (
+    existing.reservation_id &&
+    (patch.fulfillment_date != null || patch.pickup_window_id != null)
+  ) {
+    await supabase
+      .from("ss_reservations")
+      .update({
+        fulfillment_date:
+          (patch.fulfillment_date as string) ?? existing.fulfillment_date,
+        pickup_window_id:
+          patch.pickup_window_id !== undefined
+            ? patch.pickup_window_id
+            : existing.pickup_window_id,
+      })
+      .eq("id", existing.reservation_id)
+      .in("status", ["held", "committed"]);
   }
 
   return NextResponse.json({
