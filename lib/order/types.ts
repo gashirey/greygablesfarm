@@ -58,6 +58,9 @@ export type SsDeliveryZone = {
   feeCents: number;
   isActive: boolean;
   sortOrder: number;
+  /** standard = online ZIP checkout; special = admin/manual only */
+  kind?: "standard" | "special";
+  notes?: string;
   zips?: string[];
 };
 
@@ -107,6 +110,7 @@ export type CheckoutInput = {
   pickupWindowId?: string | null;
   addressZip?: string | null;
   addressStreet?: string | null;
+  addressLine2?: string | null;
   addressCity?: string | null;
   addressState?: string | null;
   recipientName?: string | null;

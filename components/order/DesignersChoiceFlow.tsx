@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import type { OrderPageCopy } from "@/lib/order/copy";
+import { resolveSeasonalLabel } from "@/lib/order/copy";
+import { normalizeDeliveryZip } from "@/lib/order/delivery-regions";
 import { computeOrderPricing } from "@/lib/order/pricing";
 import {
   loadSavedBuyerDetails,
@@ -38,6 +40,24 @@ const SCALE_ALIASES: Record<string, string> = {
   "curated-vessel": "grand",
   vessel: "grand",
 };
+
+function todayIso(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function formatFulfillmentDate(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return iso;
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  }).format(new Date(y, m - 1, d));
+}
 
 function defaultScale(products: SsProduct[], initial?: string): SsProduct | null {
   if (!products.length) return null;
@@ -75,17 +95,17 @@ export function DesignersChoiceFlow({
   const [zoneError, setZoneError] = useState("");
   const [lookingUpZip, setLookingUpZip] = useState(false);
 
-  const [isGift, setIsGift] = useState(true);
-  const [noCard, setNoCard] = useState(false);
-  const [hidePricing, setHidePricing] = useState(false);
+  const [includeCard, setIncludeCard] = useState(false);
   const [cardMessage, setCardMessage] = useState("");
 
   const [recipientName, setRecipientName] = useState("");
   const [recipientPhone, setRecipientPhone] = useState("");
   const [addressStreet, setAddressStreet] = useState("");
+  const [addressLine2, setAddressLine2] = useState("");
   const [addressCity, setAddressCity] = useState("");
   const [addressZip, setAddressZip] = useState("");
   const [deliveryInstructions, setDeliveryInstructions] = useState("");
+  const [zoneSupportMessage, setZoneSupportMessage] = useState("");
 
   const [buyerName, setBuyerName] = useState("");
   const [buyerEmail, setBuyerEmail] = useState("");
@@ -101,16 +121,25 @@ export function DesignersChoiceFlow({
     (d) => d.fulfillmentDate === fulfillmentDate,
   );
 
+  const dateOptions =
+    fulfillmentType === "delivery"
+      ? availability.filter((d) => d.fulfillmentDate > todayIso())
+      : availability;
+
   const pricing = useMemo(() => {
     if (!product) return null;
     try {
+      const deliveryFeeCents =
+        page === "delivery" && fulfillmentType === "delivery" && zone
+          ? zone.feeCents
+          : 0;
       return computeOrderPricing({
         product,
         presentation,
-        deliveryFeeCents:
-          page === "delivery" && fulfillmentType === "delivery"
-            ? (zone?.feeCents ?? 0)
-            : 0,
+        deliveryFeeCents,
+        deliveryLabel: zone
+          ? `${zone.name} delivery`
+          : "Local delivery",
       });
     } catch {
       return null;
@@ -120,9 +149,20 @@ export function DesignersChoiceFlow({
   const presentationLabel =
     presentation === "curated-keepsake" ? copy.curatedName : copy.glassName;
 
-  async function lookupZip(zip: string) {
+  async function lookupZip(zipRaw: string): Promise<ZoneInfo | null> {
+    const zip = normalizeDeliveryZip(zipRaw);
+    if (!zip) {
+      setZone(null);
+      setZoneError(
+        zipRaw.trim() ? "Please enter a valid 5-digit ZIP code." : "",
+      );
+      setZoneSupportMessage("");
+      return null;
+    }
+
     setLookingUpZip(true);
     setZoneError("");
+    setZoneSupportMessage("");
     setZone(null);
     try {
       const res = await fetch("/api/order/zone-lookup", {
@@ -131,16 +171,31 @@ export function DesignersChoiceFlow({
         body: JSON.stringify({ zip }),
       });
       const data = await res.json();
-      if (!data.inZone) {
+      if (!data.eligible && !data.inZone) {
         setZoneError(
           data.message ??
-            "We don't deliver to that ZIP online. Please choose farm pickup or contact us.",
+            "We don't currently offer regular delivery to this area.",
         );
-        return;
+        setZoneSupportMessage(
+          data.supportMessage ??
+            "We occasionally accommodate weddings, events, and larger custom orders outside our standard delivery area.",
+        );
+        return null;
       }
-      setZone(data.zone);
+      const nextZone: ZoneInfo = data.zone ?? {
+        id: data.delivery_region_id,
+        name: data.regionName,
+        feeCents: data.deliveryFeeCents,
+        feeLabel: formatCents(Number(data.deliveryFeeCents) || 0),
+      };
+      setZone(nextZone);
+      if (typeof data.zipCode === "string" || typeof data.zip === "string") {
+        setAddressZip(data.zipCode ?? data.zip);
+      }
+      return nextZone;
     } catch {
-      setZoneError("Could not check delivery zone. Please try again.");
+      setZoneError("Could not check delivery availability. Please try again.");
+      return null;
     } finally {
       setLookingUpZip(false);
     }
@@ -183,14 +238,16 @@ export function DesignersChoiceFlow({
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function validateDelivery(): boolean {
-    if (!fulfillmentDate) {
-      setError("Please choose a date.");
-      return false;
-    }
+  function validateDelivery(activeZone: ZoneInfo | null = zone): boolean {
     if (fulfillmentType === "delivery") {
-      if (!zone) {
-        setError("Enter a ZIP in our delivery area to continue.");
+      if (!activeZone) {
+        setError(
+          "Enter a delivery ZIP code in our regular delivery area to continue.",
+        );
+        return false;
+      }
+      if (!fulfillmentDate) {
+        setError("Please choose a delivery date.");
         return false;
       }
       if (
@@ -203,9 +260,15 @@ export function DesignersChoiceFlow({
         setError("Please complete all delivery fields.");
         return false;
       }
-    } else if (!pickupWindowId) {
-      setError("Please select a pickup window.");
-      return false;
+    } else {
+      if (!fulfillmentDate) {
+        setError("Please choose a pickup date.");
+        return false;
+      }
+      if (!pickupWindowId) {
+        setError("Please select a pickup window.");
+        return false;
+      }
     }
     if (!buyerName || !buyerEmail || !buyerPhone) {
       setError("Please enter your name, email, and mobile.");
@@ -216,7 +279,22 @@ export function DesignersChoiceFlow({
 
   async function startCheckout() {
     if (!product || !pricing) return;
-    if (!validateDelivery()) return;
+
+    let activeZone = zone;
+    if (fulfillmentType === "delivery") {
+      activeZone = await lookupZip(addressZip);
+    }
+    if (!validateDelivery(activeZone)) return;
+
+    const checkoutPricing = computeOrderPricing({
+      product,
+      presentation,
+      deliveryFeeCents:
+        fulfillmentType === "delivery" ? (activeZone?.feeCents ?? 0) : 0,
+      deliveryLabel: activeZone
+        ? `${activeZone.name} delivery`
+        : "Local delivery",
+    });
 
     saveBuyerDetails({
       buyerName,
@@ -244,6 +322,7 @@ export function DesignersChoiceFlow({
           pickupWindowId,
           addressZip,
           addressStreet,
+          addressLine2: addressLine2 || null,
           addressCity,
           addressState: "VA",
           recipientName: fulfillmentType === "delivery" ? recipientName : null,
@@ -253,11 +332,11 @@ export function DesignersChoiceFlow({
           buyerName,
           buyerEmail,
           buyerPhone,
-          cardMessage: noCard ? null : cardMessage,
+          cardMessage: includeCard ? cardMessage.trim() || null : null,
           notes,
-          isGift,
-          hidePricing,
-          claimedTotalCents: pricing.totalCents,
+          isGift: includeCard,
+          hidePricing: true,
+          claimedTotalCents: checkoutPricing.totalCents,
         }),
       });
       const data = await res.json();
@@ -327,17 +406,24 @@ export function DesignersChoiceFlow({
           <header className="max-w-2xl">
             <p className="type-eyebrow">{copy.eyebrow}</p>
             <h1 className="type-page-title mt-2 leading-tight">{copy.title}</h1>
-            <p className="type-page-body mt-4 leading-relaxed">{copy.lead}</p>
-            <p className="mt-3 text-sm leading-relaxed text-stone">
-              {copy.supporting}
+            <p className="mt-2 text-sm tracking-wide text-stone">
+              {resolveSeasonalLabel(copy.seasonalLabel)}
             </p>
+            <p className="mt-5 max-w-xl text-sm leading-relaxed text-stone">
+              {copy.lead}
+            </p>
+            {copy.supporting ? (
+              <p className="mt-3 text-sm leading-relaxed text-stone">
+                {copy.supporting}
+              </p>
+            ) : null}
           </header>
 
-          <section className="mt-10" aria-labelledby="scale-heading">
+          <section className="mt-12" aria-labelledby="scale-heading">
             <h2 id="scale-heading" className="sr-only">
               Choose your scale
             </h2>
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-5 sm:grid-cols-3">
               {products.map((p) => {
                 const selected = p.id === product.id;
                 return (
@@ -359,13 +445,14 @@ export function DesignersChoiceFlow({
                           fill
                           className="object-cover"
                           sizes="(max-width: 640px) 100vw, 33vw"
+                          priority={p.isPopular}
                         />
                       ) : (
                         <div className="absolute inset-0 bg-parchment" />
                       )}
                       {p.isPopular ? (
-                        <span className="absolute left-2 top-2 bg-cream px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-bark">
-                          Most sent
+                        <span className="absolute left-2 top-2 bg-cream px-2 py-1 text-[11px] tracking-wide text-bark">
+                          Most Popular
                         </span>
                       ) : null}
                       {selected ? (
@@ -377,16 +464,12 @@ export function DesignersChoiceFlow({
                         </span>
                       ) : null}
                     </div>
-                    <div className="border-t border-parchment p-4">
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="font-serif text-lg text-bark">
-                          {p.name}
-                        </span>
-                        <span className="font-serif text-lg text-bark">
-                          {formatCents(p.basePriceCents)}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-xs leading-relaxed text-stone">
+                    <div className="border-t border-parchment px-4 py-5">
+                      <p className="font-serif text-xl text-bark">{p.name}</p>
+                      <p className="mt-1.5 text-sm text-bark">
+                        {formatCents(p.basePriceCents)}
+                      </p>
+                      <p className="mt-3 text-sm leading-relaxed text-stone">
                         {p.blurb || p.description}
                       </p>
                     </div>
@@ -394,25 +477,29 @@ export function DesignersChoiceFlow({
                 );
               })}
             </div>
-            <p className="mt-4 max-w-2xl text-xs leading-relaxed text-stone">
+            <p className="mt-5 max-w-2xl text-xs leading-relaxed text-stone/80">
               {copy.scaleNote}
             </p>
           </section>
 
-          <hr className="my-10 border-parchment" />
+          <hr className="my-12 border-parchment" />
 
           <section aria-labelledby="presentation-heading">
-            <p className="type-eyebrow">{copy.presentationEyebrow}</p>
+            {copy.presentationEyebrow ? (
+              <p className="type-eyebrow">{copy.presentationEyebrow}</p>
+            ) : null}
             <h2
               id="presentation-heading"
-              className="mt-1 font-serif text-2xl text-bark"
+              className="font-serif text-2xl text-bark"
             >
               {copy.presentationTitle}
             </h2>
-            <p className="mt-2 max-w-xl text-sm text-stone">
-              {copy.presentationLead}
-            </p>
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            {copy.presentationLead ? (
+              <p className="mt-2 max-w-xl text-sm text-stone">
+                {copy.presentationLead}
+              </p>
+            ) : null}
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
               {(
                 [
                   {
@@ -438,31 +525,62 @@ export function DesignersChoiceFlow({
                     key={opt.id}
                     type="button"
                     onClick={() => setPresentation(opt.id)}
-                    className={`border p-4 text-left transition-colors ${
+                    className={`min-h-[10rem] border px-5 py-6 text-left transition-colors ${
                       selected
                         ? "border-bark bg-white"
-                        : "border-parchment bg-white hover:border-stone"
+                        : "border-parchment bg-cream/30 hover:border-stone"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <span className="font-medium text-bark">{opt.name}</span>
+                      <span className="font-serif text-lg text-bark">
+                        {opt.name}
+                      </span>
                       {selected ? (
                         <span className="text-bark" aria-hidden>
                           ✓
                         </span>
                       ) : null}
                     </div>
-                    <p className="mt-2 text-sm leading-relaxed text-stone">
+                    <p className="mt-3 text-sm leading-relaxed text-stone">
                       {opt.description}
                     </p>
-                    <p className="mt-3 text-sm text-bark">{opt.priceLabel}</p>
+                    <p className="mt-4 text-sm text-bark">{opt.priceLabel}</p>
                   </button>
                 );
               })}
             </div>
           </section>
 
-          <div className="mt-12 max-w-md">
+          <section className="mt-12 max-w-md border border-parchment bg-white px-5 py-6">
+            <h2 className="font-serif text-xl text-bark">
+              {copy.selectionTitle}
+            </h2>
+            <ul className="mt-4 space-y-2 text-sm text-bark">
+              <li className="flex gap-2">
+                <span aria-hidden>✓</span>
+                <span>
+                  {product.name}
+                  {/\barrangement\b/i.test(product.name)
+                    ? ""
+                    : " Arrangement"}
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <span aria-hidden>✓</span>
+                <span>{presentationLabel}</span>
+              </li>
+            </ul>
+            {pricing ? (
+              <div className="mt-5 flex justify-between border-t border-parchment pt-4 text-sm">
+                <span className="text-stone">Estimated Total</span>
+                <span className="font-medium text-bark">
+                  {formatCents(pricing.totalCents)}
+                </span>
+              </div>
+            ) : null}
+          </section>
+
+          <div className="mt-8 max-w-md">
             {error ? (
               <p className="mb-3 text-sm text-red-800" role="alert">
                 {error}
@@ -481,19 +599,23 @@ export function DesignersChoiceFlow({
           </div>
         </div>
       ) : (
-        <div className="max-w-xl space-y-10">
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_19rem] lg:items-start lg:gap-14 xl:grid-cols-[minmax(0,1fr)_21rem]">
+          <div className="max-w-xl space-y-12 lg:max-w-none">
             <header>
-              <p className="type-eyebrow">{copy.deliveryEyebrow}</p>
+              {copy.deliveryEyebrow ? (
+                <p className="type-eyebrow">{copy.deliveryEyebrow}</p>
+              ) : null}
               <h1 className="type-page-title mt-2 leading-tight">
                 {copy.deliveryTitle}
               </h1>
-              <p className="mt-3 text-sm text-stone">
-                {product.name} · {presentationLabel}
-                {pricing ? ` · ${formatCents(pricing.totalCents)}` : ""}
-              </p>
+              {copy.deliveryReassurance ? (
+                <p className="mt-3 max-w-lg text-sm leading-relaxed text-stone">
+                  {copy.deliveryReassurance}
+                </p>
+              ) : null}
               <button
                 type="button"
-                className="mt-3 text-sm text-stone underline underline-offset-2"
+                className="mt-4 text-sm text-stone underline underline-offset-2"
                 onClick={backToArrangement}
               >
                 {copy.editArrangement}
@@ -501,23 +623,26 @@ export function DesignersChoiceFlow({
             </header>
 
             <section>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-5 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={() => {
                     setFulfillmentType("delivery");
                     setPickupWindowId(null);
+                    if (fulfillmentDate && fulfillmentDate <= todayIso()) {
+                      setFulfillmentDate("");
+                    }
                   }}
-                  className={`border p-4 text-left ${
+                  className={`min-h-[11rem] border px-7 py-8 text-left transition-colors ${
                     fulfillmentType === "delivery"
-                      ? "border-bark"
-                      : "border-parchment"
+                      ? "border-bark bg-white"
+                      : "border-parchment bg-cream/40 hover:border-stone"
                   }`}
                 >
-                  <span className="font-medium text-bark">
+                  <span className="font-serif text-xl font-medium text-bark">
                     {copy.deliveryLocalName}
                   </span>
-                  <p className="mt-1 text-sm text-stone">
+                  <p className="mt-4 text-sm leading-relaxed text-stone">
                     {copy.deliveryLocalBlurb}
                   </p>
                 </button>
@@ -527,210 +652,358 @@ export function DesignersChoiceFlow({
                     setFulfillmentType("pickup");
                     setZone(null);
                     setZoneError("");
+                    setZoneSupportMessage("");
                   }}
-                  className={`border p-4 text-left ${
+                  className={`min-h-[11rem] border px-7 py-8 text-left transition-colors ${
                     fulfillmentType === "pickup"
-                      ? "border-bark"
-                      : "border-parchment"
+                      ? "border-bark bg-white"
+                      : "border-parchment bg-cream/40 hover:border-stone"
                   }`}
                 >
-                  <span className="font-medium text-bark">
+                  <span className="font-serif text-xl font-medium text-bark">
                     {copy.deliveryPickupName}
                   </span>
-                  <p className="mt-1 text-sm text-stone">
+                  <p className="mt-4 text-sm leading-relaxed text-stone">
                     {copy.deliveryPickupBlurb}
                   </p>
                 </button>
               </div>
-              <p className="mt-3 text-xs text-stone">
-                {fulfillmentType === "delivery"
-                  ? copy.deliveryNote
-                  : copy.pickupNote}
-              </p>
             </section>
 
-            <section className="space-y-3">
-              <label className="block text-sm">
-                Date
-                <select
-                  className="input mt-1 w-full"
-                  value={fulfillmentDate}
-                  onChange={(e) => {
-                    setFulfillmentDate(e.target.value);
-                    setPickupWindowId(null);
-                  }}
-                >
-                  <option value="">Select a date</option>
-                  {availability.map((d) => (
-                    <option key={d.id} value={d.fulfillmentDate}>
-                      {d.fulfillmentDate}
-                      {d.remainingCapacity != null
-                        ? ` · ${d.remainingCapacity} left`
-                        : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              {fulfillmentType === "pickup" && selectedDay ? (
-                <label className="block text-sm">
-                  Pickup window
-                  <select
-                    className="input mt-1 w-full"
-                    value={pickupWindowId ?? ""}
-                    onChange={(e) => setPickupWindowId(e.target.value || null)}
-                  >
-                    <option value="">Select a window</option>
-                    {(selectedDay.windows ?? []).map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
-
-              {fulfillmentType === "delivery" ? (
-                <div className="space-y-3">
+            <section className="space-y-4">
+              {fulfillmentType === "pickup" ? (
+                <>
+                  <h2 className="font-serif text-2xl text-bark">
+                    When will you collect it?
+                  </h2>
                   <label className="block text-sm">
-                    Delivery ZIP
-                    <div className="mt-1 flex gap-2">
+                    Pickup date
+                    <select
+                      className="input mt-1 w-full"
+                      value={fulfillmentDate}
+                      onChange={(e) => {
+                        setFulfillmentDate(e.target.value);
+                        setPickupWindowId(null);
+                      }}
+                    >
+                      <option value="">Select a date</option>
+                      {dateOptions.map((d) => (
+                        <option key={d.id} value={d.fulfillmentDate}>
+                          {formatFulfillmentDate(d.fulfillmentDate)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {selectedDay ? (
+                    <label className="block text-sm">
+                      Pickup window
+                      <select
+                        className="input mt-1 w-full"
+                        value={pickupWindowId ?? ""}
+                        onChange={(e) =>
+                          setPickupWindowId(e.target.value || null)
+                        }
+                      >
+                        <option value="">Select a window</option>
+                        {(selectedDay.windows ?? []).map((w) => (
+                          <option key={w.id} value={w.id}>
+                            {w.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                </>
+              ) : (
+                <div className="space-y-5">
+                  <h2 className="font-serif text-3xl leading-tight text-bark">
+                    {copy.whereGoingTitle}
+                  </h2>
+                  <label className="block text-sm">
+                    Delivery ZIP Code
+                    <p className="mt-1 text-xs leading-relaxed text-stone">
+                      {copy.zipHelper}
+                    </p>
+                    <div className="mt-2 flex gap-2">
                       <input
                         className="input w-full"
                         inputMode="numeric"
-                        maxLength={5}
+                        autoComplete="postal-code"
+                        maxLength={10}
                         value={addressZip}
                         onChange={(e) => {
-                          const zip = e.target.value.replace(/\D/g, "").slice(0, 5);
-                          setAddressZip(zip);
-                          if (zip.length === 5) void lookupZip(zip);
-                          else {
+                          const raw = e.target.value;
+                          const digits = raw.replace(/\D/g, "").slice(0, 9);
+                          const display =
+                            digits.length > 5
+                              ? `${digits.slice(0, 5)}-${digits.slice(5)}`
+                              : digits;
+                          setAddressZip(display);
+                          if (digits.length < 5) {
                             setZone(null);
                             setZoneError("");
+                            setZoneSupportMessage("");
+                          }
+                        }}
+                        onBlur={() => void lookupZip(addressZip)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            void lookupZip(addressZip);
                           }
                         }}
                       />
                       {lookingUpZip ? (
-                        <span className="self-center text-xs text-stone">…</span>
+                        <span className="self-center text-xs text-stone">
+                          Checking…
+                        </span>
                       ) : null}
                     </div>
                   </label>
+
                   {zone ? (
-                    <p className="text-xs text-bark">
-                      {zone.name} · {zone.feeLabel}
-                    </p>
+                    <div className="border border-parchment bg-cream/50 px-5 py-4 text-sm leading-relaxed text-bark">
+                      <p className="text-bark">
+                        <span aria-hidden className="mr-1.5">
+                          ✓
+                        </span>
+                        Great news! We deliver to this area.
+                      </p>
+                      <dl className="mt-3 grid gap-1 text-stone">
+                        <div className="flex justify-between gap-4">
+                          <dt>Delivery Area</dt>
+                          <dd className="text-bark">{zone.name}</dd>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <dt>Delivery Fee</dt>
+                          <dd className="text-bark">{zone.feeLabel}</dd>
+                        </div>
+                      </dl>
+                    </div>
                   ) : null}
+
                   {zoneError ? (
-                    <p className="text-xs text-red-800">{zoneError}</p>
+                    <div
+                      className="border border-parchment bg-cream/40 px-5 py-4 text-sm leading-relaxed"
+                      role="status"
+                    >
+                      <p className="text-bark">{zoneError}</p>
+                      {zoneSupportMessage ? (
+                        <p className="mt-2 text-stone">{zoneSupportMessage}</p>
+                      ) : null}
+                      <ul className="mt-4 space-y-2 text-sm text-bark">
+                        <li>
+                          <button
+                            type="button"
+                            className="underline underline-offset-2"
+                            onClick={() => {
+                              setFulfillmentType("pickup");
+                              setZone(null);
+                              setZoneError("");
+                              setZoneSupportMessage("");
+                            }}
+                          >
+                            Choose Farm Pickup
+                          </button>
+                        </li>
+                        <li>
+                          <a
+                            href="/contact"
+                            className="underline underline-offset-2"
+                          >
+                            Contact Grey Gables
+                          </a>
+                        </li>
+                      </ul>
+                    </div>
                   ) : null}
-                  <label className="block text-sm">
-                    Recipient name
-                    <input
-                      className="input mt-1 w-full"
-                      value={recipientName}
-                      onChange={(e) => setRecipientName(e.target.value)}
-                    />
-                  </label>
-                  <label className="block text-sm">
-                    Recipient phone
-                    <input
-                      className="input mt-1 w-full"
-                      value={recipientPhone}
-                      onChange={(e) => setRecipientPhone(e.target.value)}
-                    />
-                  </label>
-                  <label className="block text-sm">
-                    Street address
-                    <input
-                      className="input mt-1 w-full"
-                      value={addressStreet}
-                      onChange={(e) => setAddressStreet(e.target.value)}
-                    />
-                  </label>
-                  <label className="block text-sm">
-                    City
-                    <input
-                      className="input mt-1 w-full"
-                      value={addressCity}
-                      onChange={(e) => setAddressCity(e.target.value)}
-                    />
-                  </label>
-                  <label className="block text-sm">
-                    Delivery instructions
-                    <textarea
-                      className="input mt-1 w-full"
-                      rows={2}
-                      value={deliveryInstructions}
-                      onChange={(e) => setDeliveryInstructions(e.target.value)}
-                    />
-                  </label>
+
+                  {zone ? (
+                    <div className="space-y-4 border-t border-parchment pt-8">
+                      {copy.deliveryDateRule ? (
+                        <p className="text-xs leading-relaxed text-stone">
+                          {copy.deliveryDateRule}
+                        </p>
+                      ) : null}
+                      <label className="block text-sm">
+                        Requested delivery date
+                        <select
+                          className="input mt-1 w-full"
+                          value={fulfillmentDate}
+                          onChange={(e) => {
+                            setFulfillmentDate(e.target.value);
+                            setPickupWindowId(null);
+                          }}
+                        >
+                          <option value="">Select a date</option>
+                          {dateOptions.map((d) => (
+                            <option key={d.id} value={d.fulfillmentDate}>
+                              {formatFulfillmentDate(d.fulfillmentDate)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="block text-sm">
+                        Recipient name
+                        <input
+                          className="input mt-1 w-full"
+                          value={recipientName}
+                          onChange={(e) => setRecipientName(e.target.value)}
+                          autoComplete="name"
+                        />
+                      </label>
+                      <label className="block text-sm">
+                        Recipient phone
+                        <input
+                          className="input mt-1 w-full"
+                          value={recipientPhone}
+                          onChange={(e) => setRecipientPhone(e.target.value)}
+                          autoComplete="tel"
+                        />
+                      </label>
+                      <label className="block text-sm">
+                        Street address
+                        <input
+                          className="input mt-1 w-full"
+                          value={addressStreet}
+                          onChange={(e) => setAddressStreet(e.target.value)}
+                          autoComplete="address-line1"
+                        />
+                      </label>
+                      <label className="block text-sm">
+                        Address line 2
+                        <input
+                          className="input mt-1 w-full"
+                          value={addressLine2}
+                          onChange={(e) => setAddressLine2(e.target.value)}
+                          autoComplete="address-line2"
+                          placeholder="Apt, suite, etc. (optional)"
+                        />
+                      </label>
+                      <div className="grid gap-4 sm:grid-cols-[1fr_5rem_7rem]">
+                        <label className="block text-sm">
+                          City
+                          <input
+                            className="input mt-1 w-full"
+                            value={addressCity}
+                            onChange={(e) => setAddressCity(e.target.value)}
+                            autoComplete="address-level2"
+                          />
+                        </label>
+                        <label className="block text-sm">
+                          State
+                          <input
+                            className="input mt-1 w-full"
+                            value="VA"
+                            readOnly
+                            aria-readonly="true"
+                          />
+                        </label>
+                        <label className="block text-sm">
+                          ZIP
+                          <input
+                            className="input mt-1 w-full"
+                            inputMode="numeric"
+                            autoComplete="postal-code"
+                            maxLength={10}
+                            value={addressZip}
+                            onChange={(e) => {
+                              const digits = e.target.value
+                                .replace(/\D/g, "")
+                                .slice(0, 9);
+                              const display =
+                                digits.length > 5
+                                  ? `${digits.slice(0, 5)}-${digits.slice(5)}`
+                                  : digits;
+                              setAddressZip(display);
+                              setZone(null);
+                              setZoneError("");
+                              setZoneSupportMessage("");
+                            }}
+                            onBlur={() => void lookupZip(addressZip)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                void lookupZip(addressZip);
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
+                      <label className="block text-sm">
+                        Delivery instructions
+                        <p className="mt-1 text-xs leading-relaxed text-stone">
+                          {copy.deliveryInstructionsHelper}
+                        </p>
+                        <textarea
+                          className="input mt-2 w-full"
+                          rows={3}
+                          placeholder={copy.deliveryInstructionsPlaceholder}
+                          value={deliveryInstructions}
+                          onChange={(e) =>
+                            setDeliveryInstructions(e.target.value)
+                          }
+                        />
+                      </label>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </section>
+
+            <section>
+              <h2 className="font-serif text-2xl text-bark">
+                {copy.enclosureTitle}
+              </h2>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  className={`min-w-[7rem] border px-5 py-3 text-sm ${
+                    !includeCard ? "border-bark bg-white" : "border-parchment"
+                  }`}
+                  onClick={() => {
+                    setIncludeCard(false);
+                    setCardMessage("");
+                  }}
+                >
+                  {copy.enclosureNo}
+                </button>
+                <button
+                  type="button"
+                  className={`min-w-[7rem] border px-5 py-3 text-sm ${
+                    includeCard ? "border-bark bg-white" : "border-parchment"
+                  }`}
+                  onClick={() => setIncludeCard(true)}
+                >
+                  {copy.enclosureYes}
+                </button>
+              </div>
+              {includeCard ? (
+                <div className="mt-5">
+                  <p className="text-sm leading-relaxed text-stone">
+                    {copy.enclosureHelper}
+                  </p>
+                  <textarea
+                    className="input mt-3 w-full"
+                    rows={3}
+                    placeholder={copy.enclosurePlaceholder}
+                    value={cardMessage}
+                    onChange={(e) => setCardMessage(e.target.value)}
+                    maxLength={250}
+                  />
                 </div>
               ) : null}
             </section>
 
             <section>
-              <h2 className="font-serif text-xl text-bark">{copy.giftTitle}</h2>
-              <div className="mt-3 flex gap-3">
-                <button
-                  type="button"
-                  className={`border px-4 py-2 text-sm ${
-                    isGift ? "border-bark" : "border-parchment"
-                  }`}
-                  onClick={() => setIsGift(true)}
-                >
-                  {copy.giftYes}
-                </button>
-                <button
-                  type="button"
-                  className={`border px-4 py-2 text-sm ${
-                    !isGift ? "border-bark" : "border-parchment"
-                  }`}
-                  onClick={() => setIsGift(false)}
-                >
-                  {copy.giftNo}
-                </button>
-              </div>
-              <p className="mt-4 text-sm text-stone">{copy.cardHelper}</p>
-              {!noCard ? (
-                <textarea
-                  className="input mt-2 w-full"
-                  rows={3}
-                  placeholder={copy.cardPlaceholder}
-                  value={cardMessage}
-                  onChange={(e) => setCardMessage(e.target.value)}
-                  maxLength={250}
-                />
-              ) : null}
-              <label className="mt-3 flex items-center gap-2 text-sm text-bark">
-                <input
-                  type="checkbox"
-                  checked={noCard}
-                  onChange={(e) => setNoCard(e.target.checked)}
-                />
-                {copy.noCardLabel}
-              </label>
-              {isGift ? (
-                <label className="mt-2 flex items-center gap-2 text-sm text-bark">
-                  <input
-                    type="checkbox"
-                    checked={hidePricing}
-                    onChange={(e) => setHidePricing(e.target.checked)}
-                  />
-                  {copy.hidePricingLabel}
-                </label>
-              ) : null}
-            </section>
-
-            <section>
-              <p className="type-eyebrow">{copy.designerEyebrow}</p>
-              <h2 className="mt-1 font-serif text-xl text-bark">
+              <h2 className="font-serif text-2xl text-bark">
                 {copy.designerTitle}
               </h2>
-              <p className="mt-2 text-sm leading-relaxed text-stone">
+              <p className="mt-3 text-sm leading-relaxed text-stone">
                 {copy.designerLead}
               </p>
               <textarea
-                className="input mt-3 w-full"
+                className="input mt-4 w-full"
                 rows={4}
                 placeholder={copy.designerPlaceholder}
                 value={notes}
@@ -738,8 +1011,10 @@ export function DesignersChoiceFlow({
               />
             </section>
 
-            <section className="space-y-3">
-              <h2 className="font-serif text-xl text-bark">Your contact</h2>
+            <section className="space-y-4">
+              <h2 className="font-serif text-2xl text-bark">
+                {copy.contactTitle}
+              </h2>
               {hydratedSaved && rememberDetails && buyerEmail ? (
                 <p className="text-xs text-stone">
                   We filled in details saved on this device.
@@ -779,59 +1054,136 @@ export function DesignersChoiceFlow({
                   checked={rememberDetails}
                   onChange={(e) => setRememberDetails(e.target.checked)}
                 />
-                Save my details on this device for next time
+                {copy.rememberLabel}
               </label>
             </section>
 
-            <section>
-              <p className="type-eyebrow">{copy.reviewEyebrow}</p>
-              <h2 className="mt-1 font-serif text-xl text-bark">
-                {copy.reviewTitle}
-              </h2>
-              {pricing ? (
-                <ul className="mt-4 space-y-1.5 text-sm">
-                  {pricing.lines.map((line) => (
-                    <li
-                      key={`${line.kind}-${line.label}`}
-                      className="flex justify-between gap-3 text-stone"
-                    >
-                      <span>{line.label}</span>
-                      <span className="text-bark">
-                        {formatCents(line.unitAmountCents)}
-                      </span>
-                    </li>
-                  ))}
-                  <li className="flex justify-between gap-3 border-t border-parchment pt-2 font-medium text-bark">
-                    <span>Subtotal</span>
-                    <span>{formatCents(pricing.totalCents)}</span>
+            {error ? (
+              <p className="text-sm text-red-800 lg:hidden" role="alert">
+                {error}
+              </p>
+            ) : null}
+            <div className="flex flex-wrap gap-3 lg:hidden">
+              <button
+                type="button"
+                className="btn border-parchment"
+                onClick={backToArrangement}
+                disabled={submitting}
+              >
+                {copy.backCta}
+              </button>
+              <button
+                type="button"
+                className="btn border-bark bg-bark text-cream"
+                onClick={() => void startCheckout()}
+                disabled={
+                  submitting ||
+                  !pricing ||
+                  (fulfillmentType === "delivery" && !zone)
+                }
+              >
+                {submitting ? "Starting checkout…" : copy.checkoutCta}
+              </button>
+            </div>
+          </div>
+
+          <aside className="mt-12 border border-parchment bg-white p-6 lg:mt-0 lg:sticky lg:top-8">
+            <p className="type-eyebrow">{copy.summaryEyebrow}</p>
+            <h2 className="mt-2 font-serif text-2xl text-bark">
+              {copy.reviewTitle}
+            </h2>
+            <p className="mt-3 text-sm text-stone">
+              {product.name}
+              <span className="mt-0.5 block">{presentationLabel}</span>
+            </p>
+            {pricing ? (
+              <ul className="mt-6 space-y-3 text-sm">
+                <li className="flex justify-between gap-3 text-stone">
+                  <span>Arrangement</span>
+                  <span className="text-bark">
+                    {formatCents(pricing.arrangementCents)}
+                  </span>
+                </li>
+                {pricing.vesselCents > 0 ? (
+                  <li className="flex justify-between gap-3 text-stone">
+                    <span>Curated vessel</span>
+                    <span className="text-bark">
+                      {formatCents(pricing.vesselCents)}
+                    </span>
                   </li>
-                </ul>
-              ) : null}
-              <p className="mt-1 text-xs text-stone">Tax calculated at checkout.</p>
-              {error ? (
-                <p className="mt-3 text-sm text-red-800" role="alert">
-                  {error}
-                </p>
-              ) : null}
-              <div className="mt-5 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  className="btn border-parchment"
-                  onClick={backToArrangement}
-                  disabled={submitting}
-                >
-                  {copy.backCta}
-                </button>
-                <button
-                  type="button"
-                  className="btn border-bark bg-bark text-cream"
-                  onClick={() => void startCheckout()}
-                  disabled={submitting || !pricing}
-                >
-                  {submitting ? "Starting checkout…" : copy.checkoutCta}
-                </button>
-              </div>
-            </section>
+                ) : null}
+                {fulfillmentType === "pickup" ? (
+                  <li className="text-stone">
+                    <div className="flex justify-between gap-3">
+                      <span>Farm Pickup</span>
+                      <span className="text-bark">No charge</span>
+                    </div>
+                    {fulfillmentDate ? (
+                      <p className="mt-1 text-xs text-stone">
+                        {formatFulfillmentDate(fulfillmentDate)}
+                        {selectedDay && pickupWindowId
+                          ? ` · ${
+                              selectedDay.windows?.find(
+                                (w) => w.id === pickupWindowId,
+                              )?.label ?? ""
+                            }`
+                          : ""}
+                      </p>
+                    ) : null}
+                  </li>
+                ) : zone ? (
+                  <li className="text-stone">
+                    <div className="flex justify-between gap-3">
+                      <span>{zone.name} Delivery</span>
+                      <span className="text-bark">{zone.feeLabel}</span>
+                    </div>
+                    {fulfillmentDate ? (
+                      <p className="mt-1 text-xs text-stone">
+                        {formatFulfillmentDate(fulfillmentDate)}
+                      </p>
+                    ) : null}
+                  </li>
+                ) : (
+                  <li className="flex justify-between gap-3 text-stone">
+                    <span>Delivery</span>
+                    <span className="text-bark">Enter ZIP Code</span>
+                  </li>
+                )}
+                <li className="flex justify-between gap-3 border-t border-parchment pt-3 font-medium text-bark">
+                  <span>Estimated Total</span>
+                  <span>{formatCents(pricing.totalCents)}</span>
+                </li>
+              </ul>
+            ) : null}
+            <p className="mt-2 text-xs text-stone">Tax calculated at checkout.</p>
+            {error ? (
+              <p className="mt-3 hidden text-sm text-red-800 lg:block" role="alert">
+                {error}
+              </p>
+            ) : null}
+            <div className="mt-6 hidden flex-col gap-3 lg:flex">
+              <button
+                type="button"
+                className="btn w-full border-bark bg-bark text-cream"
+                onClick={() => void startCheckout()}
+                disabled={
+                  submitting ||
+                  !pricing ||
+                  (fulfillmentType === "delivery" && !zone)
+                }
+              >
+                {submitting ? "Starting checkout…" : copy.checkoutCta}
+              </button>
+              <button
+                type="button"
+                className="btn w-full border-parchment"
+                onClick={backToArrangement}
+                disabled={submitting}
+              >
+                {copy.backCta}
+              </button>
+            </div>
+          </aside>
         </div>
       )}
     </div>

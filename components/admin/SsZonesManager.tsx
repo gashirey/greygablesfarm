@@ -9,6 +9,8 @@ type Zone = {
   fee_cents: number;
   is_active: boolean;
   sort_order: number;
+  kind?: string | null;
+  notes?: string | null;
   zips: string[];
 };
 
@@ -75,9 +77,12 @@ export function SsZonesManager() {
       ) : null}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-serif text-2xl text-bark">Delivery zones</h1>
+          <h1 className="font-serif text-2xl text-bark">Delivery regions</h1>
           <p className="mt-1 text-sm text-stone">
-            ZIP codes determine delivery fee. Outside ZIPs are declined online.
+            ZIP codes determine eligibility and fee at checkout. Customers never
+            pick a zone. Regions without ZIP codes are removed. Values live in{" "}
+            <code className="text-xs">ss_delivery_zones</code> /{" "}
+            <code className="text-xs">ss_delivery_zone_zips</code>.
           </p>
         </div>
         <button
@@ -110,6 +115,7 @@ export function SsZonesManager() {
                 {z.name} · ${(z.fee_cents / 100).toFixed(2)}
               </p>
               <p className="text-xs text-stone">
+                {z.kind === "special" ? "Special · " : ""}
                 {z.zips.length} ZIPs
                 {z.zips.length
                   ? ` · ${z.zips.slice(0, 6).join(", ")}${z.zips.length > 6 ? "…" : ""}`

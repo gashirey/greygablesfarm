@@ -12,9 +12,9 @@ const SCALE_SEED: Record<
     slug: "classic",
     name: "Classic",
     description:
-      "A thoughtfully composed arrangement for everyday gifting and smaller spaces.",
+      "Perfect for thoughtful gestures, smaller tables, and everyday beauty.",
     blurb:
-      "Intimate and refined — ideal for a nightstand, desk, or quiet thank-you.",
+      "Perfect for thoughtful gestures, smaller tables, and everyday beauty.",
     basePriceCents: 15000,
     vesselUpgradeCents: 4000,
     capacityCost: 1,
@@ -29,9 +29,9 @@ const SCALE_SEED: Record<
     slug: "signature",
     name: "Signature",
     description:
-      "Our most-sent gift — fuller, more abundant, with greater presence.",
+      "Our signature expression of the season—balanced, abundant, and our most popular choice.",
     blurb:
-      "Our most-sent gift. Fuller presence for the table or a welcome home.",
+      "Our signature expression of the season—balanced, abundant, and our most popular choice.",
     basePriceCents: 22500,
     vesselUpgradeCents: 5000,
     capacityCost: 2,
@@ -45,9 +45,10 @@ const SCALE_SEED: Record<
   grand: {
     slug: "grand",
     name: "Grand",
-    description: "A generous statement arrangement with maximum presence.",
+    description:
+      "A dramatic seasonal statement for celebrations, milestones, and unforgettable moments.",
     blurb:
-      "Maximum presence — for celebrations, gratitude, and grand gestures.",
+      "A dramatic seasonal statement for celebrations, milestones, and unforgettable moments.",
     basePriceCents: 35000,
     vesselUpgradeCents: 7500,
     capacityCost: 3,
@@ -77,7 +78,9 @@ export function enrichScaleProduct(product: SsProduct): SsProduct {
   const seed = SCALE_SEED[scaleKey];
   if (!seed) return product;
 
-  const isLegacySlug = Boolean(LEGACY_TO_SCALE[product.slug] && !SCALE_SEED[product.slug]);
+  const isLegacySlug = Boolean(
+    LEGACY_TO_SCALE[product.slug] && !SCALE_SEED[product.slug],
+  );
   const hasBlurb = Boolean(product.blurb?.trim());
   const hasUpgrade = product.vesselUpgradeCents > 0;
 
@@ -93,9 +96,10 @@ export function enrichScaleProduct(product: SsProduct): SsProduct {
       : (seed.vesselUpgradeCents ?? 0),
     requiresVessel: false,
     isPopular: product.isPopular || Boolean(seed.isPopular),
-    imageUrl: isLegacySlug || !product.imageUrl
-      ? seed.imageUrl || product.imageUrl
-      : product.imageUrl,
+    imageUrl:
+      isLegacySlug || !product.imageUrl
+        ? seed.imageUrl || product.imageUrl
+        : product.imageUrl,
     imageAlt: product.imageAlt || seed.imageAlt || seed.name,
     sortOrder: seed.sortOrder ?? product.sortOrder,
   };

@@ -9,7 +9,10 @@
     "lint": "eslint",
     "seed:inventory": "node scripts/seed-mvp-availability.mjs",
     "upload:shoot": "node scripts/bulk-upload-media.mjs",
-    "test:ss-pricing": "node scripts/test-ss-order-pricing.mjs"
+    "test:ss-pricing": "node scripts/test-ss-order-pricing.mjs",
+    "test:delivery-zips": "node scripts/test-delivery-zips.mjs",
+    "test:stripe-labels": "node scripts/test-stripe-labels.mjs",
+    "seed:delivery-regions": "node --env-file=.env.local scripts/seed-delivery-regions.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.0",

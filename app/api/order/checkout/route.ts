@@ -3,7 +3,6 @@ import { site } from "@/lib/content";
 import {
   isStripeTaxEnabled,
   RESERVATION_MINUTES,
-  STRIPE_KIND_FLOWER_ORDER,
 } from "@/lib/order/config";
 import { computeOrderPricing, assertPricingNotTampered } from "@/lib/order/pricing";
 import {
@@ -14,6 +13,10 @@ import {
 } from "@/lib/order/queries";
 import { enrichScaleProduct } from "@/lib/order/scales";
 import { createReservation, releaseExpiredReservations } from "@/lib/order/reservations";
+import {
+  buildStripeCheckoutLineItems,
+  buildStripeOrderMetadata,
+} from "@/lib/order/stripe-labels";
 import type {
   CheckoutInput,
   FulfillmentType,
@@ -98,6 +101,10 @@ export async function POST(request: Request) {
       typeof payload.addressStreet === "string"
         ? payload.addressStreet.trim()
         : null,
+    addressLine2:
+      typeof payload.addressLine2 === "string"
+        ? payload.addressLine2.trim()
+        : null,
     addressCity:
       typeof payload.addressCity === "string"
         ? payload.addressCity.trim()
@@ -130,8 +137,9 @@ export async function POST(request: Request) {
         : null,
     notes:
       typeof payload.notes === "string" ? payload.notes.trim() : null,
+    // Pricing is never included with the arrangement; receipts go to the buyer.
     isGift: Boolean(payload.isGift),
-    hidePricing: Boolean(payload.hidePricing),
+    hidePricing: true,
   };
 
   const clientClaimedTotal =
@@ -242,6 +250,7 @@ export async function POST(request: Request) {
 
   let deliveryFeeCents = 0;
   let deliveryZoneId: string | null = null;
+  let deliveryZoneName: string | null = null;
 
   if (input.fulfillmentType === "delivery") {
     if (
@@ -261,13 +270,16 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "We don't deliver to that ZIP online. Please choose pickup or contact us.",
+            "This address is outside our regular delivery area. Please choose Farm Pickup, enter a different ZIP, or contact Grey Gables.",
         },
         { status: 400 },
       );
     }
     deliveryFeeCents = zoneResult.zone.feeCents;
     deliveryZoneId = zoneResult.zone.id;
+    deliveryZoneName = zoneResult.zone.name;
+    // Authoritative normalized ZIP from server lookup
+    input.addressZip = zoneResult.zip;
   } else {
     if (!input.pickupWindowId) {
       return NextResponse.json(
@@ -291,6 +303,9 @@ export async function POST(request: Request) {
       presentation: resolvedPresentation,
       vessel,
       deliveryFeeCents,
+      deliveryLabel: deliveryZoneName
+        ? `${deliveryZoneName} delivery`
+        : "Local delivery",
       taxCents: 0,
     });
     assertPricingNotTampered(pricing, clientClaimedTotal);
@@ -309,12 +324,14 @@ export async function POST(request: Request) {
     pickup_window_id:
       input.fulfillmentType === "pickup" ? input.pickupWindowId : null,
     delivery_zone_id: deliveryZoneId,
+    delivery_zone_name: deliveryZoneName,
     buyer_name: input.buyerName,
     buyer_email: input.buyerEmail.toLowerCase(),
     buyer_phone: input.buyerPhone,
     recipient_name: input.recipientName,
     recipient_phone: input.recipientPhone,
     address_street: input.addressStreet,
+    address_line2: input.addressLine2 || null,
     address_city: input.addressCity,
     address_state: input.addressState ?? "VA",
     address_zip: input.addressZip?.slice(0, 5) ?? null,
@@ -341,20 +358,50 @@ export async function POST(request: Request) {
     .select("id")
     .single();
 
-  // Before migration 032, presentation / gift columns may be missing
+  // Before migrations 032/033, optional columns may be missing
+  if (
+    orderErr &&
+    /delivery_zone_name|address_line2|schema cache|PGRST204/i.test(
+      orderErr.message ?? "",
+    )
+  ) {
+    const {
+      delivery_zone_name: _zn,
+      address_line2: _a2,
+      ...without033
+    } = orderBase;
+    const retry033 = await supabase
+      .from("ss_orders")
+      .insert({
+        ...without033,
+        presentation: resolvedPresentation,
+        is_gift: Boolean(input.isGift),
+        hide_pricing: Boolean(input.hidePricing),
+      })
+      .select("id")
+      .single();
+    order = retry033.data;
+    orderErr = retry033.error;
+  }
+
   if (
     orderErr &&
     /presentation|is_gift|hide_pricing|schema cache|PGRST204/i.test(
       orderErr.message ?? "",
     )
   ) {
-    const retry = await supabase
+    const {
+      delivery_zone_name: _zn2,
+      address_line2: _a22,
+      ...core
+    } = orderBase;
+    const retry032 = await supabase
       .from("ss_orders")
-      .insert(orderBase)
+      .insert(core)
       .select("id")
       .single();
-    order = retry.data;
-    orderErr = retry.error;
+    order = retry032.data;
+    orderErr = retry032.error;
   }
 
   if (orderErr || !order) {
@@ -399,20 +446,12 @@ export async function POST(request: Request) {
   const origin = siteOrigin(request);
   const automaticTax = isStripeTaxEnabled();
 
-  const lineItems = pricing.lines
-    .filter((l) => l.kind !== "tax" && l.unitAmountCents > 0)
-    .map((l) => ({
-      quantity: l.quantity,
-      price_data: {
-        currency: "usd" as const,
-        unit_amount: l.unitAmountCents,
-        product_data: {
-          name: l.label,
-        },
-      },
-    }));
+  const lineItems = buildStripeCheckoutLineItems(pricing.lines, {
+    productName: product.name,
+    deliveryRegionName: deliveryZoneName,
+  });
 
-  // Include $0 vessel as description-only via arrangement name when included
+  // Signature Glass is included in the arrangement — never a $0 vessel line
   if (lineItems.length === 0) {
     return NextResponse.json(
       { error: "Nothing to charge." },
@@ -420,15 +459,27 @@ export async function POST(request: Request) {
     );
   }
 
+  const stripeMeta = buildStripeOrderMetadata({
+    orderId: order.id,
+    productSlug: product.slug,
+    productName: product.name,
+    presentation: resolvedPresentation,
+    fulfillmentType: input.fulfillmentType,
+    fulfillmentDate: input.fulfillmentDate,
+    deliveryRegionName: deliveryZoneName,
+    deliveryZip: input.addressZip,
+    buyerName: input.buyerName,
+  });
+
   try {
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       customer_email: input.buyerEmail.toLowerCase(),
       client_reference_id: order.id,
-      metadata: {
-        kind: STRIPE_KIND_FLOWER_ORDER,
-        order_id: order.id,
-        product_slug: product.slug,
+      metadata: stripeMeta,
+      payment_intent_data: {
+        description: "Grey Gables Farm Order",
+        metadata: stripeMeta,
       },
       line_items: lineItems,
       automatic_tax: automaticTax ? { enabled: true } : undefined,

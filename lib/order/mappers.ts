@@ -44,6 +44,8 @@ export type ZoneRow = {
   fee_cents: number;
   is_active: boolean;
   sort_order: number;
+  kind?: string | null;
+  notes?: string | null;
 };
 
 export function mapProduct(row: ProductRow): SsProduct {
@@ -89,6 +91,8 @@ export function mapZone(row: ZoneRow, zips?: string[]): SsDeliveryZone {
     feeCents: row.fee_cents,
     isActive: row.is_active,
     sortOrder: row.sort_order,
+    kind: row.kind === "special" ? "special" : "standard",
+    notes: row.notes ?? "",
     zips,
   };
 }

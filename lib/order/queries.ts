@@ -1,5 +1,6 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { normalizeDeliveryZip } from "./delivery-regions";
 import {
   mapFulfillmentDate,
   mapPickupWindow,
@@ -10,6 +11,14 @@ import {
   type VesselRow,
   type ZoneRow,
 } from "./mappers";
+import {
+  displayArrangementLabel,
+  displayDeliveryRegionName,
+  displayPresentationLabel,
+  formatFulfillmentDateLabel,
+  formatOrderDisplayNumber,
+  type OrderSuccessSummary,
+} from "./order-display";
 import type {
   SsDeliveryZone,
   SsFulfillmentDate,
@@ -164,28 +173,57 @@ export async function getVesselById(id: string): Promise<SsVessel | null> {
 export async function lookupZoneByZip(
   zipRaw: string,
 ): Promise<{ zone: SsDeliveryZone; zip: string } | null> {
-  const zip = zipRaw.trim().slice(0, 5);
-  if (!/^\d{5}$/.test(zip)) return null;
+  const zip = normalizeDeliveryZip(zipRaw);
+  if (!zip) return null;
 
   const supabase = client();
   if (!supabase) return null;
 
-  const { data: zipRow } = await supabase
+  let zipQuery = supabase
     .from("ss_delivery_zone_zips")
-    .select("zip, zone_id")
-    .eq("zip", zip)
-    .maybeSingle();
+    .select("zip, zone_id, is_active")
+    .eq("zip", zip);
 
-  if (!zipRow) return null;
+  let { data: zipRow, error: zipErr } = await zipQuery.maybeSingle();
 
-  const { data: zoneRow } = await supabase
+  // Pre-migration 033: is_active column may be missing
+  if (zipErr && /is_active|schema cache|PGRST/i.test(zipErr.message)) {
+    const retry = await supabase
+      .from("ss_delivery_zone_zips")
+      .select("zip, zone_id")
+      .eq("zip", zip)
+      .maybeSingle();
+    zipRow = retry.data as typeof zipRow;
+    zipErr = retry.error;
+  }
+
+  if (zipErr || !zipRow) return null;
+  if (
+    zipRow &&
+    "is_active" in zipRow &&
+    zipRow.is_active === false
+  ) {
+    return null;
+  }
+
+  let zoneQuery = supabase
     .from("ss_delivery_zones")
     .select("*")
     .eq("id", zipRow.zone_id)
-    .eq("is_active", true)
-    .maybeSingle();
+    .eq("is_active", true);
 
+  let { data: zoneRow, error: zoneErr } = await zoneQuery.maybeSingle();
+
+  if (zoneErr) {
+    console.error("[lookupZoneByZip]", zoneErr.message);
+    return null;
+  }
   if (!zoneRow) return null;
+
+  // Special Delivery (kind=special) is never eligible for online ZIP checkout
+  const kind = (zoneRow as ZoneRow & { kind?: string }).kind;
+  if (kind === "special") return null;
+
   return { zone: mapZone(zoneRow as ZoneRow), zip };
 }
 
@@ -354,4 +392,100 @@ export async function getPickupWindowById(
     ...data,
     fulfillment_date: fulfillmentDate,
   });
+}
+
+/** Load order summary for the post-checkout success page (service role). */
+export async function getOrderSuccessSummary(
+  orderId: string,
+): Promise<OrderSuccessSummary | null> {
+  const supabase = client();
+  if (!supabase) return null;
+
+  const selectFull =
+    "id, fulfillment_type, fulfillment_date, pickup_window_id, presentation, vessel_cents, total_cents, delivery_zone_name, ss_products(name), ss_delivery_zones(name), ss_pickup_windows(label)";
+  const selectCore =
+    "id, fulfillment_type, fulfillment_date, pickup_window_id, vessel_cents, total_cents, ss_products(name), ss_delivery_zones(name), ss_pickup_windows(label)";
+
+  let { data: order, error } = await supabase
+    .from("ss_orders")
+    .select(selectFull)
+    .eq("id", orderId)
+    .maybeSingle();
+
+  if (
+    error &&
+    /presentation|delivery_zone_name|schema cache|PGRST/i.test(error.message)
+  ) {
+    ({ data: order, error } = await supabase
+      .from("ss_orders")
+      .select(selectCore)
+      .eq("id", orderId)
+      .maybeSingle());
+  }
+
+  if (error || !order) {
+    if (error) console.error("[getOrderSuccessSummary]", error.message);
+    return null;
+  }
+
+  const productRaw = order.ss_products as
+    | { name: string }
+    | { name: string }[]
+    | null;
+  const zoneRaw = order.ss_delivery_zones as
+    | { name: string }
+    | { name: string }[]
+    | null;
+  const pickupRaw = order.ss_pickup_windows as
+    | { label: string }
+    | { label: string }[]
+    | null;
+
+  const product = Array.isArray(productRaw) ? productRaw[0] : productRaw;
+  const zone = Array.isArray(zoneRaw) ? zoneRaw[0] : zoneRaw;
+  const pickup = Array.isArray(pickupRaw) ? pickupRaw[0] : pickupRaw;
+
+  const regionRaw =
+    ("delivery_zone_name" in order
+      ? (order.delivery_zone_name as string | null)
+      : null) ||
+    zone?.name ||
+    null;
+  const regionLabel = displayDeliveryRegionName(regionRaw);
+  const dateLabel = order.fulfillment_date
+    ? formatFulfillmentDateLabel(String(order.fulfillment_date))
+    : null;
+  const pickupLabel = pickup?.label?.trim() || null;
+  const isDelivery = order.fulfillment_type === "delivery";
+
+  let expectedLabel: string | null = null;
+  if (dateLabel) {
+    expectedLabel = isDelivery
+      ? `Expected delivery · ${dateLabel}`
+      : pickupLabel
+        ? `Pickup · ${dateLabel} · ${pickupLabel}`
+        : `Pickup · ${dateLabel}`;
+  }
+
+  const presentation =
+    "presentation" in order
+      ? (order.presentation as string | null)
+      : null;
+
+  return {
+    orderId: order.id,
+    displayNumber: formatOrderDisplayNumber(order.id),
+    arrangementLabel: displayArrangementLabel(product?.name),
+    presentationLabel: displayPresentationLabel(
+      presentation,
+      Number(order.vessel_cents) || 0,
+    ),
+    fulfillmentType: isDelivery ? "delivery" : "pickup",
+    fulfillmentLabel: isDelivery ? "Local Delivery" : "Farm Pickup",
+    deliveryRegionLabel: isDelivery ? regionLabel : null,
+    fulfillmentDateLabel: dateLabel,
+    pickupWindowLabel: isDelivery ? null : pickupLabel,
+    expectedLabel,
+    totalCents: Number(order.total_cents) || 0,
+  };
 }

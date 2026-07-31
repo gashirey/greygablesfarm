@@ -15,6 +15,8 @@ export function computeOrderPricing(input: {
   presentation?: PresentationMode | null;
   vessel?: SsVessel | null;
   deliveryFeeCents?: number;
+  /** Shown on the delivery line when a region is known */
+  deliveryLabel?: string | null;
   taxCents?: number;
 }): PriceBreakdown {
   const presentation: PresentationMode =
@@ -74,7 +76,7 @@ export function computeOrderPricing(input: {
   if (deliveryFeeCents > 0) {
     lines.push({
       kind: "delivery",
-      label: "Delivery",
+      label: (input.deliveryLabel?.trim() || "Local delivery").slice(0, 120),
       quantity: 1,
       unitAmountCents: deliveryFeeCents,
     });
