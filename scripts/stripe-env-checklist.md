@@ -29,7 +29,14 @@
   3. Put that endpoint’s `whsec_...` in Vercel Production as `STRIPE_WEBHOOK_SECRET`
 - Prefer **test** keys until launch; switch to `sk_live_` / `pk_live_` later.
 
-## Smoke
+## Smoke / Live verification
+
+1. Set `SMOKE_ORDER_SECRET` (and `RESEND_API_KEY` for confirmation emails) on Vercel Production.
+2. **Full order path (preferred):** https://greygablesfarm.com/order/test  
+   - Unlock with the secret  
+   - $2 arrangement + ZIP `27606` → $2 delivery ($4 total)  
+   - Real `ss_orders` + webhook fulfill + buyer/farm confirmation emails
+3. **Bare Stripe charge only:** https://greygablesfarm.com/order/smoke ($5/$7, no order row, no email)
 
 ```bash
 curl -sS -X POST http://127.0.0.1:3000/api/order/checkout \

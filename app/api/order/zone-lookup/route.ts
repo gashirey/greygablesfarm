@@ -1,5 +1,13 @@
 import { NextResponse } from "next/server";
 import { normalizeDeliveryZip } from "@/lib/order/delivery-regions";
+import {
+  isSmokeSecretValid,
+  LIVE_SMOKE_DELIVERY_CENTS,
+  LIVE_SMOKE_ZIP,
+  LIVE_SMOKE_ZONE_NAME,
+  liveSmokeZoneResponse,
+  readSmokeSecretFromRequest,
+} from "@/lib/order/live-smoke";
 import { lookupZoneByZip } from "@/lib/order/queries";
 import { formatCents } from "@/lib/order/types";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -24,10 +32,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const raw =
-    typeof (body as { zip?: unknown }).zip === "string"
-      ? (body as { zip: string }).zip
-      : "";
+  const payload = body as Record<string, unknown>;
+  const raw = typeof payload.zip === "string" ? payload.zip : "";
+  const smokeAuthorized = isSmokeSecretValid(
+    readSmokeSecretFromRequest(request, payload),
+  );
 
   const zip = normalizeDeliveryZip(raw);
   if (!zip) {
@@ -44,6 +53,25 @@ export async function POST(request: Request) {
       },
       { status: 400 },
     );
+  }
+
+  if (smokeAuthorized && zip === LIVE_SMOKE_ZIP) {
+    const zone = liveSmokeZoneResponse(zip);
+    return NextResponse.json({
+      eligible: true,
+      ok: true,
+      inZone: true,
+      liveSmoke: true,
+      delivery_region_id: zone.id,
+      regionName: LIVE_SMOKE_ZONE_NAME,
+      zipCode: zip,
+      zip,
+      deliveryFee: LIVE_SMOKE_DELIVERY_CENTS / 100,
+      deliveryFeeCents: LIVE_SMOKE_DELIVERY_CENTS,
+      fulfillmentMethod: "delivery",
+      message: "Smoke test ZIP — $2 delivery for Live verification.",
+      zone,
+    });
   }
 
   const result = await lookupZoneByZip(zip);

@@ -14,6 +14,7 @@ const SCALE_ALIASES: Record<string, string> = {
 /** Real sibling routes under /order — never treat as product slugs. */
 const RESERVED_ORDER_SEGMENTS = new Set([
   "smoke",
+  "test",
   "success",
   "manage",
   "cancelled",

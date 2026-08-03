@@ -4,6 +4,15 @@ import {
   isStripeTaxEnabled,
   RESERVATION_MINUTES,
 } from "@/lib/order/config";
+import {
+  applyLiveSmokeProductPricing,
+  isSmokeSecretValid,
+  LIVE_SMOKE_DELIVERY_CENTS,
+  LIVE_SMOKE_ZIP,
+  LIVE_SMOKE_ZONE_NAME,
+  readSmokeSecretFromRequest,
+  withLiveSmokeNote,
+} from "@/lib/order/live-smoke";
 import { computeOrderPricing, assertPricingNotTampered } from "@/lib/order/pricing";
 import {
   getPickupWindowById,
@@ -68,11 +77,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
 
+  const liveSmoke = isSmokeSecretValid(
+    readSmokeSecretFromRequest(request, payload),
+  );
+
   const presentationRaw =
     typeof payload.presentation === "string" ? payload.presentation.trim() : "";
-  const presentation: PresentationMode | undefined =
-    presentationRaw === "curated-keepsake" ||
-    presentationRaw === "signature-glass"
+  const presentation: PresentationMode | undefined = liveSmoke
+    ? "signature-glass"
+    : presentationRaw === "curated-keepsake" ||
+        presentationRaw === "signature-glass"
       ? presentationRaw
       : undefined;
 
@@ -184,7 +198,10 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  const product = enrichScaleProduct(productRaw);
+  let product = enrichScaleProduct(productRaw);
+  if (liveSmoke) {
+    product = applyLiveSmokeProductPricing(product);
+  }
 
   if (input.fulfillmentType === "delivery" && !product.allowsDelivery) {
     return NextResponse.json(
@@ -244,9 +261,16 @@ export async function POST(request: Request) {
     }
   }
 
-  const resolvedPresentation: PresentationMode =
-    input.presentation ??
-    (vessel || product.requiresVessel ? "curated-keepsake" : "signature-glass");
+  const resolvedPresentation: PresentationMode = liveSmoke
+    ? "signature-glass"
+    : (input.presentation ??
+      (vessel || product.requiresVessel
+        ? "curated-keepsake"
+        : "signature-glass"));
+
+  if (liveSmoke) {
+    vessel = null;
+  }
 
   let deliveryFeeCents = 0;
   let deliveryZoneId: string | null = null;
@@ -265,21 +289,38 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-    const zoneResult = await lookupZoneByZip(input.addressZip);
-    if (!zoneResult) {
-      return NextResponse.json(
-        {
-          error:
-            "This address is outside our regular delivery area. Please choose Farm Pickup, enter a different ZIP, or contact Grey Gables.",
-        },
-        { status: 400 },
-      );
+
+    const zip = input.addressZip.replace(/\D/g, "").slice(0, 5);
+    if (liveSmoke) {
+      if (zip !== LIVE_SMOKE_ZIP) {
+        return NextResponse.json(
+          {
+            error: `Smoke test delivery uses ZIP ${LIVE_SMOKE_ZIP} only ($${LIVE_SMOKE_DELIVERY_CENTS / 100} fee). Or choose Farm Pickup.`,
+          },
+          { status: 400 },
+        );
+      }
+      deliveryFeeCents = LIVE_SMOKE_DELIVERY_CENTS;
+      deliveryZoneId = null;
+      deliveryZoneName = LIVE_SMOKE_ZONE_NAME;
+      input.addressZip = LIVE_SMOKE_ZIP;
+    } else {
+      const zoneResult = await lookupZoneByZip(input.addressZip);
+      if (!zoneResult) {
+        return NextResponse.json(
+          {
+            error:
+              "This address is outside our regular delivery area. Please choose Farm Pickup, enter a different ZIP, or contact Grey Gables.",
+          },
+          { status: 400 },
+        );
+      }
+      deliveryFeeCents = zoneResult.zone.feeCents;
+      deliveryZoneId = zoneResult.zone.id;
+      deliveryZoneName = zoneResult.zone.name;
+      // Authoritative normalized ZIP from server lookup
+      input.addressZip = zoneResult.zip;
     }
-    deliveryFeeCents = zoneResult.zone.feeCents;
-    deliveryZoneId = zoneResult.zone.id;
-    deliveryZoneName = zoneResult.zone.name;
-    // Authoritative normalized ZIP from server lookup
-    input.addressZip = zoneResult.zip;
   } else {
     if (!input.pickupWindowId) {
       return NextResponse.json(
@@ -337,7 +378,7 @@ export async function POST(request: Request) {
     address_zip: input.addressZip?.slice(0, 5) ?? null,
     delivery_instructions: input.deliveryInstructions,
     card_message: input.cardMessage,
-    notes: input.notes,
+    notes: liveSmoke ? withLiveSmokeNote(input.notes) : input.notes,
     arrangement_cents: pricing.arrangementCents,
     vessel_cents: pricing.vesselCents,
     delivery_fee_cents: pricing.deliveryFeeCents,
@@ -459,17 +500,20 @@ export async function POST(request: Request) {
     );
   }
 
-  const stripeMeta = buildStripeOrderMetadata({
-    orderId: order.id,
-    productSlug: product.slug,
-    productName: product.name,
-    presentation: resolvedPresentation,
-    fulfillmentType: input.fulfillmentType,
-    fulfillmentDate: input.fulfillmentDate,
-    deliveryRegionName: deliveryZoneName,
-    deliveryZip: input.addressZip,
-    buyerName: input.buyerName,
-  });
+  const stripeMeta = {
+    ...buildStripeOrderMetadata({
+      orderId: order.id,
+      productSlug: product.slug,
+      productName: product.name,
+      presentation: resolvedPresentation,
+      fulfillmentType: input.fulfillmentType,
+      fulfillmentDate: input.fulfillmentDate,
+      deliveryRegionName: deliveryZoneName,
+      deliveryZip: input.addressZip,
+      buyerName: input.buyerName,
+    }),
+    ...(liveSmoke ? { live_smoke: "1" } : {}),
+  };
 
   try {
     const session = await stripe.checkout.sessions.create({
@@ -478,7 +522,9 @@ export async function POST(request: Request) {
       client_reference_id: order.id,
       metadata: stripeMeta,
       payment_intent_data: {
-        description: "Grey Gables Farm Order",
+        description: liveSmoke
+          ? "Grey Gables Farm — Live smoke test order"
+          : "Grey Gables Farm Order",
         metadata: stripeMeta,
       },
       line_items: lineItems,

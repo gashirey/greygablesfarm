@@ -48,7 +48,14 @@ export function SmokeCheckoutClient() {
         <h1 className="type-page-title mt-2">Stripe smoke test</h1>
         <p className="mt-3 text-sm leading-relaxed text-stone">
           Charge $5 or $7 to verify Live Stripe keys and the production webhook.
-          This is not a flower order.
+          This is not a flower order and does not send a confirmation email.
+        </p>
+        <p className="mt-3 text-sm text-bark">
+          Need the full order page + confirmation email? Use{" "}
+          <a href="/order/test" className="underline underline-offset-2">
+            /order/test
+          </a>{" "}
+          ($2 arrangement + ZIP 27606 = $2 delivery).
         </p>
       </header>
 

@@ -5,6 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 import type { OrderPageCopy } from "@/lib/order/copy";
 import { resolveSeasonalLabel } from "@/lib/order/copy";
 import { normalizeDeliveryZip } from "@/lib/order/delivery-regions";
+import {
+  LIVE_SMOKE_ARRANGEMENT_CENTS,
+  LIVE_SMOKE_DELIVERY_CENTS,
+  LIVE_SMOKE_ZIP,
+} from "@/lib/order/live-smoke";
 import { computeOrderPricing } from "@/lib/order/pricing";
 import {
   loadSavedBuyerDetails,
@@ -30,6 +35,8 @@ type Props = {
   availability: SsFulfillmentDate[];
   copy: OrderPageCopy;
   initialScaleSlug?: string;
+  /** When set, zone-lookup + checkout use secret-gated $2 Live smoke pricing. */
+  smokeSecret?: string;
 };
 
 type Page = "arrangement" | "delivery";
@@ -79,7 +86,9 @@ export function DesignersChoiceFlow({
   availability,
   copy,
   initialScaleSlug,
+  smokeSecret,
 }: Props) {
+  const liveSmoke = Boolean(smokeSecret?.trim());
   const [page, setPage] = useState<Page>("arrangement");
   const [product, setProduct] = useState<SsProduct | null>(() =>
     defaultScale(products, initialScaleSlug),
@@ -167,8 +176,18 @@ export function DesignersChoiceFlow({
     try {
       const res = await fetch("/api/order/zone-lookup", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ zip }),
+        headers: {
+          "Content-Type": "application/json",
+          ...(smokeSecret?.trim()
+            ? { "x-smoke-secret": smokeSecret.trim() }
+            : {}),
+        },
+        body: JSON.stringify({
+          zip,
+          ...(smokeSecret?.trim()
+            ? { smokeSecret: smokeSecret.trim() }
+            : {}),
+        }),
       });
       const data = await res.json();
       if (!data.eligible && !data.inZone) {
@@ -313,10 +332,15 @@ export function DesignersChoiceFlow({
     try {
       const res = await fetch("/api/order/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(smokeSecret?.trim()
+            ? { "x-smoke-secret": smokeSecret.trim() }
+            : {}),
+        },
         body: JSON.stringify({
           productSlug: product.slug,
-          presentation,
+          presentation: liveSmoke ? "signature-glass" : presentation,
           fulfillmentType,
           fulfillmentDate,
           pickupWindowId,
@@ -324,7 +348,7 @@ export function DesignersChoiceFlow({
           addressStreet,
           addressLine2: addressLine2 || null,
           addressCity,
-          addressState: "VA",
+          addressState: liveSmoke ? "NC" : "VA",
           recipientName: fulfillmentType === "delivery" ? recipientName : null,
           recipientPhone: fulfillmentType === "delivery" ? recipientPhone : null,
           deliveryInstructions:
@@ -337,6 +361,9 @@ export function DesignersChoiceFlow({
           isGift: includeCard,
           hidePricing: true,
           claimedTotalCents: checkoutPricing.totalCents,
+          ...(smokeSecret?.trim()
+            ? { smokeSecret: smokeSecret.trim() }
+            : {}),
         }),
       });
       const data = await res.json();
@@ -400,6 +427,19 @@ export function DesignersChoiceFlow({
   return (
     <div className="mx-auto max-w-6xl">
       {progress}
+
+      {liveSmoke ? (
+        <div className="mb-8 border border-parchment bg-cream/50 px-4 py-3 text-sm text-bark">
+          <p className="font-medium">Live smoke test mode</p>
+          <p className="mt-1 text-stone">
+            Arrangement {formatCents(LIVE_SMOKE_ARRANGEMENT_CENTS)}. Delivery ZIP{" "}
+            <code className="text-xs">{LIVE_SMOKE_ZIP}</code> →{" "}
+            {formatCents(LIVE_SMOKE_DELIVERY_CENTS)} shipping (
+            {formatCents(LIVE_SMOKE_ARRANGEMENT_CENTS + LIVE_SMOKE_DELIVERY_CENTS)}{" "}
+            total). Runs the real order + confirmation email path.
+          </p>
+        </div>
+      ) : null}
 
       {page === "arrangement" ? (
         <div className="max-w-4xl">
@@ -482,74 +522,78 @@ export function DesignersChoiceFlow({
             </p>
           </section>
 
-          <hr className="my-12 border-parchment" />
+          {!liveSmoke ? (
+            <>
+              <hr className="my-12 border-parchment" />
 
-          <section aria-labelledby="presentation-heading">
-            {copy.presentationEyebrow ? (
-              <p className="type-eyebrow">{copy.presentationEyebrow}</p>
-            ) : null}
-            <h2
-              id="presentation-heading"
-              className="font-serif text-2xl text-bark"
-            >
-              {copy.presentationTitle}
-            </h2>
-            {copy.presentationLead ? (
-              <p className="mt-2 max-w-xl text-sm text-stone">
-                {copy.presentationLead}
-              </p>
-            ) : null}
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              {(
-                [
-                  {
-                    id: "signature-glass" as const,
-                    name: copy.glassName,
-                    description: copy.glassDescription,
-                    priceLabel: copy.glassPriceLabel,
-                  },
-                  {
-                    id: "curated-keepsake" as const,
-                    name: copy.curatedName,
-                    description: copy.curatedDescription,
-                    priceLabel:
-                      product.vesselUpgradeCents > 0
-                        ? `+${formatCents(product.vesselUpgradeCents)}`
-                        : "Included",
-                  },
-                ] as const
-              ).map((opt) => {
-                const selected = presentation === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => setPresentation(opt.id)}
-                    className={`min-h-[10rem] border px-5 py-6 text-left transition-colors ${
-                      selected
-                        ? "border-bark bg-white"
-                        : "border-parchment bg-cream/30 hover:border-stone"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="font-serif text-lg text-bark">
-                        {opt.name}
-                      </span>
-                      {selected ? (
-                        <span className="text-bark" aria-hidden>
-                          ✓
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-3 text-sm leading-relaxed text-stone">
-                      {opt.description}
-                    </p>
-                    <p className="mt-4 text-sm text-bark">{opt.priceLabel}</p>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
+              <section aria-labelledby="presentation-heading">
+                {copy.presentationEyebrow ? (
+                  <p className="type-eyebrow">{copy.presentationEyebrow}</p>
+                ) : null}
+                <h2
+                  id="presentation-heading"
+                  className="font-serif text-2xl text-bark"
+                >
+                  {copy.presentationTitle}
+                </h2>
+                {copy.presentationLead ? (
+                  <p className="mt-2 max-w-xl text-sm text-stone">
+                    {copy.presentationLead}
+                  </p>
+                ) : null}
+                <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                  {(
+                    [
+                      {
+                        id: "signature-glass" as const,
+                        name: copy.glassName,
+                        description: copy.glassDescription,
+                        priceLabel: copy.glassPriceLabel,
+                      },
+                      {
+                        id: "curated-keepsake" as const,
+                        name: copy.curatedName,
+                        description: copy.curatedDescription,
+                        priceLabel:
+                          product.vesselUpgradeCents > 0
+                            ? `+${formatCents(product.vesselUpgradeCents)}`
+                            : "Included",
+                      },
+                    ] as const
+                  ).map((opt) => {
+                    const selected = presentation === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setPresentation(opt.id)}
+                        className={`min-h-[10rem] border px-5 py-6 text-left transition-colors ${
+                          selected
+                            ? "border-bark bg-white"
+                            : "border-parchment bg-cream/30 hover:border-stone"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="font-serif text-lg text-bark">
+                            {opt.name}
+                          </span>
+                          {selected ? (
+                            <span className="text-bark" aria-hidden>
+                              ✓
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-3 text-sm leading-relaxed text-stone">
+                          {opt.description}
+                        </p>
+                        <p className="mt-4 text-sm text-bark">{opt.priceLabel}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            </>
+          ) : null}
 
           <section className="mt-12 max-w-md border border-parchment bg-white px-5 py-6">
             <h2 className="font-serif text-xl text-bark">
