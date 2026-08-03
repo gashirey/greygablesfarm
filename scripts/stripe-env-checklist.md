@@ -31,7 +31,11 @@
 
 ## Smoke / Live verification
 
-1. Set `SMOKE_ORDER_SECRET` (and `RESEND_API_KEY` for confirmation emails) on Vercel Production.
+1. Set on Vercel Production:
+   - `SMOKE_ORDER_SECRET`
+   - `RESEND_API_KEY` / `RESEND_FROM` (buyer + farm emails)
+   - `ORDER_NOTIFY_EMAILS=george@…,andrea@…` (both get `[Farm] Order confirmed…`; `info@` is always included)
+   - Optional SMS: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `ORDER_NOTIFY_PHONES=+1…,+1…`
 2. **Full order path (preferred):** https://greygablesfarm.com/order/test  
    - Unlock with the secret  
    - $2 arrangement + ZIP `27606` → $2 delivery ($4 total)  

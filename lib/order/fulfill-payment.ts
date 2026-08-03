@@ -1,9 +1,10 @@
 import { createServiceClient } from "@/lib/supabase/server";
-import { sendSsOrderEmails } from "@/lib/email/send-ss-order-notification";
+import { notifyOrderEvent } from "@/lib/email/send-ss-order-notification";
 import { commitReservation } from "./reservations";
 
 /**
- * Idempotent: mark order paid, commit reservation, advance fulfillment, email.
+ * Idempotent: mark order paid, commit reservation, advance fulfillment,
+ * then email + SMS farm alerts.
  */
 export async function fulfillFlowerOrderPayment(input: {
   orderId: string;
@@ -57,9 +58,9 @@ export async function fulfillFlowerOrderPayment(input: {
   }
 
   try {
-    await sendSsOrderEmails(input.orderId);
+    await notifyOrderEvent("confirmed", { orderId: input.orderId });
   } catch (err) {
-    console.error("[ss_orders] email", err);
+    console.error("[ss_orders] notify", err);
   }
 
   return { ok: true };

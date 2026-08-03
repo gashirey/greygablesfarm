@@ -1,5 +1,6 @@
 import { site } from "@/lib/content";
 import type { FlowerOrderPayload } from "@/lib/flowers/types";
+import { getFarmNotifyEmails } from "@/lib/notify/farm-recipients";
 
 function formatFlowerOrderEmail(payload: FlowerOrderPayload): {
   subject: string;
@@ -56,7 +57,7 @@ export async function sendFlowerOrderEmail(
     },
     body: JSON.stringify({
       from,
-      to: [site.email],
+      to: getFarmNotifyEmails(),
       reply_to: payload.senderEmail,
       subject,
       text,

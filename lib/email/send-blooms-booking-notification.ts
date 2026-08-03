@@ -1,6 +1,7 @@
 import { bloomsPackage } from "@/lib/blooms/package";
 import type { BloomsBookingPayload } from "@/lib/blooms/types";
 import { site } from "@/lib/content";
+import { getFarmNotifyEmails } from "@/lib/notify/farm-recipients";
 
 function formatBloomsBookingEmail(
   payload: BloomsBookingPayload & { bookingId?: string; paymentStatus?: string },
@@ -49,7 +50,7 @@ export async function sendBloomsBookingEmail(
     },
     body: JSON.stringify({
       from,
-      to: [site.email],
+      to: getFarmNotifyEmails(),
       reply_to: payload.email,
       subject,
       text,

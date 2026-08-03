@@ -4,6 +4,7 @@ import {
   DELIVERY_OCCASIONS,
   type DeliveryInquiryPayload,
 } from "@/lib/delivery/types";
+import { getFarmNotifyEmails } from "@/lib/notify/farm-recipients";
 
 function labelFor<T extends { value: string; label: string }>(
   options: readonly T[],
@@ -60,7 +61,7 @@ export async function sendDeliveryInquiryEmail(
     },
     body: JSON.stringify({
       from,
-      to: [site.email],
+      to: getFarmNotifyEmails(),
       reply_to: payload.email,
       subject,
       text,
