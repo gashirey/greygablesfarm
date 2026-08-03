@@ -3,6 +3,7 @@ import { fulfillFlowerOrderPayment } from "@/lib/order/fulfill-payment";
 import {
   STRIPE_KIND_BLOOMS,
   STRIPE_KIND_FLOWER_ORDER,
+  STRIPE_KIND_SMOKE,
 } from "@/lib/order/config";
 import { releaseReservation } from "@/lib/order/reservations";
 import { getStripeWebhookSecret } from "@/lib/stripe/config";
@@ -43,6 +44,15 @@ export async function POST(request: Request) {
       typeof session.payment_intent === "string"
         ? session.payment_intent
         : session.payment_intent?.id ?? null;
+
+    if (kind === STRIPE_KIND_SMOKE) {
+      console.info(
+        "[stripe webhook] smoke_checkout paid",
+        session.id,
+        session.amount_total,
+      );
+      return NextResponse.json({ received: true, smoke: true });
+    }
 
     if (kind === STRIPE_KIND_FLOWER_ORDER) {
       const orderId =

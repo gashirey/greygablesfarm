@@ -7,6 +7,11 @@ export const RESERVATION_MINUTES = 30;
 /** Stripe Checkout metadata kind for flower self-service orders. */
 export const STRIPE_KIND_FLOWER_ORDER = "flower_order";
 export const STRIPE_KIND_BLOOMS = "blooms";
+/** Tiny Live/test payment to verify Stripe + webhooks (not a real flower order). */
+export const STRIPE_KIND_SMOKE = "smoke_checkout";
+
+/** Allowed smoke-checkout amounts (cents). */
+export const SMOKE_CHECKOUT_AMOUNTS_CENTS = [500, 700] as const;
 
 /**
  * When true, Stripe Checkout enables automatic_tax.
