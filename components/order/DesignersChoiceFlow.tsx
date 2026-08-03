@@ -1087,7 +1087,7 @@ export function DesignersChoiceFlow({
             </div>
           </div>
 
-          <aside className="mt-12 border border-parchment bg-white p-6 lg:mt-0 lg:sticky lg:top-8">
+          <aside className="mt-12 self-start border border-parchment bg-white p-6 lg:mt-0 lg:sticky lg:top-8">
             <p className="type-eyebrow">{copy.summaryEyebrow}</p>
             <h2 className="mt-2 font-serif text-2xl text-bark">
               {copy.reviewTitle}
@@ -1161,7 +1161,7 @@ export function DesignersChoiceFlow({
                 {error}
               </p>
             ) : null}
-            <div className="mt-6 hidden flex-col gap-3 lg:flex">
+            <div className="mt-6 hidden gap-3 lg:flex lg:flex-col">
               <button
                 type="button"
                 className="btn w-full border-bark bg-bark text-cream"
@@ -1176,7 +1176,7 @@ export function DesignersChoiceFlow({
               </button>
               <button
                 type="button"
-                className="btn w-full border-parchment"
+                className="btn w-full border-parchment bg-white"
                 onClick={backToArrangement}
                 disabled={submitting}
               >
