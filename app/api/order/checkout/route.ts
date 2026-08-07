@@ -438,48 +438,22 @@ export async function POST(request: Request) {
     fulfillment_status: "checkout_started",
   };
 
+  const orderExtras = {
+    presentation: resolvedPresentation,
+    is_gift: Boolean(input.isGift),
+    hide_pricing: Boolean(input.hidePricing),
+  };
+
   let { data: order, error: orderErr } = await supabase
     .from("ss_orders")
     .insert({
       ...orderBase,
-      presentation: resolvedPresentation,
-      is_gift: Boolean(input.isGift),
-      hide_pricing: Boolean(input.hidePricing),
+      ...orderExtras,
     })
     .select("id")
     .single();
 
-  // Before migrations 032/033/035, optional columns may be missing
-  if (
-    orderErr &&
-    /in_town_pickup_slot_id|schema cache|PGRST204/i.test(
-      orderErr.message ?? "",
-    )
-  ) {
-    if (input.fulfillmentType === "in_town_pickup") {
-      return NextResponse.json(
-        {
-          error:
-            "In-town pickup is not available yet. Please choose delivery or farm pickup.",
-        },
-        { status: 503 },
-      );
-    }
-    const { in_town_pickup_slot_id: _slot, ...without035 } = orderBase;
-    const retry035 = await supabase
-      .from("ss_orders")
-      .insert({
-        ...without035,
-        presentation: resolvedPresentation,
-        is_gift: Boolean(input.isGift),
-        hide_pricing: Boolean(input.hidePricing),
-      })
-      .select("id")
-      .single();
-    order = retry035.data;
-    orderErr = retry035.error;
-  }
-
+  // Older schemas may lack optional columns. Retry without dropping in-town slot.
   if (
     orderErr &&
     /delivery_zone_name|address_line2|schema cache|PGRST204/i.test(
@@ -488,17 +462,20 @@ export async function POST(request: Request) {
   ) {
     const {
       delivery_zone_name: _zn,
-      address_line2: _a2,
-      in_town_pickup_slot_id: _slot2,
-      ...without033
+      address_line2: line2,
+      ...withoutLine2
     } = orderBase;
+    // Preserve suite/building when address_line2 column is unavailable
+    const streetWithLine2 =
+      line2 && withoutLine2.address_street
+        ? `${withoutLine2.address_street}, ${line2}`
+        : withoutLine2.address_street;
     const retry033 = await supabase
       .from("ss_orders")
       .insert({
-        ...without033,
-        presentation: resolvedPresentation,
-        is_gift: Boolean(input.isGift),
-        hide_pricing: Boolean(input.hidePricing),
+        ...withoutLine2,
+        address_street: streetWithLine2,
+        ...orderExtras,
       })
       .select("id")
       .single();
@@ -514,17 +491,37 @@ export async function POST(request: Request) {
   ) {
     const {
       delivery_zone_name: _zn2,
-      address_line2: _a22,
-      in_town_pickup_slot_id: _slot3,
+      address_line2: line2b,
       ...core
     } = orderBase;
+    const streetWithLine2 =
+      line2b && core.address_street
+        ? `${core.address_street}, ${line2b}`
+        : core.address_street;
     const retry032 = await supabase
       .from("ss_orders")
-      .insert(core)
+      .insert({
+        ...core,
+        address_street: streetWithLine2,
+      })
       .select("id")
       .single();
     order = retry032.data;
     orderErr = retry032.error;
+  }
+
+  if (
+    orderErr &&
+    /in_town_pickup_slot_id/i.test(orderErr.message ?? "")
+  ) {
+    console.error("[checkout] in-town column missing", orderErr);
+    return NextResponse.json(
+      {
+        error:
+          "In-town pickup is not available yet. Please choose delivery or farm pickup.",
+      },
+      { status: 503 },
+    );
   }
 
   if (orderErr || !order) {
