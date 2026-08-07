@@ -19,6 +19,7 @@ import type {
   FulfillmentType,
   PresentationMode,
   SsFulfillmentDate,
+  SsInTownPickupSlot,
   SsProduct,
 } from "@/lib/order/types";
 import { formatCents } from "@/lib/order/types";
@@ -33,6 +34,8 @@ type ZoneInfo = {
 type Props = {
   products: SsProduct[];
   availability: SsFulfillmentDate[];
+  /** Upcoming scheduled in-town pickups; when empty, option is hidden. */
+  inTownSlots?: SsInTownPickupSlot[];
   copy: OrderPageCopy;
   initialScaleSlug?: string;
   /** When set, zone-lookup + checkout use secret-gated $2 Live smoke pricing. */
@@ -66,6 +69,26 @@ function formatFulfillmentDate(iso: string): string {
   }).format(new Date(y, m - 1, d));
 }
 
+function formatClock(time: string): string {
+  const [hStr, mStr] = time.split(":");
+  const h = Number(hStr);
+  const m = Number(mStr);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return time.slice(0, 5);
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: m === 0 ? undefined : "2-digit",
+  }).format(new Date(2000, 0, 1, h, m));
+}
+
+function inTownSlotOptionLabel(slot: SsInTownPickupSlot): string {
+  const when = formatFulfillmentDate(slot.pickupDate);
+  const window = slot.label.trim()
+    ? slot.label.trim()
+    : `${formatClock(slot.startsAt)} – ${formatClock(slot.endsAt)}`;
+  const place = slot.location?.name ?? "In Town";
+  return `${when} · ${window} · ${place}`;
+}
+
 function defaultScale(products: SsProduct[], initial?: string): SsProduct | null {
   if (!products.length) return null;
   if (initial) {
@@ -84,11 +107,13 @@ function defaultScale(products: SsProduct[], initial?: string): SsProduct | null
 export function DesignersChoiceFlow({
   products,
   availability,
+  inTownSlots = [],
   copy,
   initialScaleSlug,
   smokeSecret,
 }: Props) {
   const liveSmoke = Boolean(smokeSecret?.trim());
+  const hasInTown = inTownSlots.length > 0;
   const [page, setPage] = useState<Page>("arrangement");
   const [product, setProduct] = useState<SsProduct | null>(() =>
     defaultScale(products, initialScaleSlug),
@@ -100,6 +125,9 @@ export function DesignersChoiceFlow({
     useState<FulfillmentType>("delivery");
   const [fulfillmentDate, setFulfillmentDate] = useState("");
   const [pickupWindowId, setPickupWindowId] = useState<string | null>(null);
+  const [inTownPickupSlotId, setInTownPickupSlotId] = useState<string | null>(
+    null,
+  );
   const [zone, setZone] = useState<ZoneInfo | null>(null);
   const [zoneError, setZoneError] = useState("");
   const [lookingUpZip, setLookingUpZip] = useState(false);
@@ -128,6 +156,9 @@ export function DesignersChoiceFlow({
 
   const selectedDay = availability.find(
     (d) => d.fulfillmentDate === fulfillmentDate,
+  );
+  const selectedInTownSlot = inTownSlots.find(
+    (s) => s.id === inTownPickupSlotId,
   );
 
   const dateOptions =
@@ -279,6 +310,11 @@ export function DesignersChoiceFlow({
         setError("Please complete all delivery fields.");
         return false;
       }
+    } else if (fulfillmentType === "in_town_pickup") {
+      if (!inTownPickupSlotId || !selectedInTownSlot) {
+        setError("Please select an in-town pickup time.");
+        return false;
+      }
     } else {
       if (!fulfillmentDate) {
         setError("Please choose a pickup date.");
@@ -342,12 +378,22 @@ export function DesignersChoiceFlow({
           productSlug: product.slug,
           presentation: liveSmoke ? "signature-glass" : presentation,
           fulfillmentType,
-          fulfillmentDate,
-          pickupWindowId,
-          addressZip,
-          addressStreet,
-          addressLine2: addressLine2 || null,
-          addressCity,
+          fulfillmentDate:
+            fulfillmentType === "in_town_pickup"
+              ? (selectedInTownSlot?.pickupDate ?? fulfillmentDate)
+              : fulfillmentDate,
+          pickupWindowId:
+            fulfillmentType === "pickup" ? pickupWindowId : null,
+          inTownPickupSlotId:
+            fulfillmentType === "in_town_pickup" ? inTownPickupSlotId : null,
+          addressZip:
+            fulfillmentType === "delivery" ? addressZip : null,
+          addressStreet:
+            fulfillmentType === "delivery" ? addressStreet : null,
+          addressLine2:
+            fulfillmentType === "delivery" ? addressLine2 || null : null,
+          addressCity:
+            fulfillmentType === "delivery" ? addressCity : null,
           addressState: liveSmoke ? "NC" : "VA",
           recipientName: fulfillmentType === "delivery" ? recipientName : null,
           recipientPhone: fulfillmentType === "delivery" ? recipientPhone : null,
@@ -667,12 +713,17 @@ export function DesignersChoiceFlow({
             </header>
 
             <section>
-              <div className="grid gap-5 sm:grid-cols-2">
+              <div
+                className={`grid gap-5 ${
+                  hasInTown ? "sm:grid-cols-3" : "sm:grid-cols-2"
+                }`}
+              >
                 <button
                   type="button"
                   onClick={() => {
                     setFulfillmentType("delivery");
                     setPickupWindowId(null);
+                    setInTownPickupSlotId(null);
                     if (fulfillmentDate && fulfillmentDate <= todayIso()) {
                       setFulfillmentDate("");
                     }
@@ -697,6 +748,7 @@ export function DesignersChoiceFlow({
                     setZone(null);
                     setZoneError("");
                     setZoneSupportMessage("");
+                    setInTownPickupSlotId(null);
                   }}
                   className={`min-h-[11rem] border px-7 py-8 text-left transition-colors ${
                     fulfillmentType === "pickup"
@@ -711,6 +763,31 @@ export function DesignersChoiceFlow({
                     {copy.deliveryPickupBlurb}
                   </p>
                 </button>
+                {hasInTown ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFulfillmentType("in_town_pickup");
+                      setZone(null);
+                      setZoneError("");
+                      setZoneSupportMessage("");
+                      setPickupWindowId(null);
+                      setFulfillmentDate("");
+                    }}
+                    className={`min-h-[11rem] border px-7 py-8 text-left transition-colors ${
+                      fulfillmentType === "in_town_pickup"
+                        ? "border-bark bg-white"
+                        : "border-parchment bg-cream/40 hover:border-stone"
+                    }`}
+                  >
+                    <span className="font-serif text-xl font-medium text-bark">
+                      {copy.deliveryInTownName}
+                    </span>
+                    <p className="mt-4 text-sm leading-relaxed text-stone">
+                      {copy.deliveryInTownBlurb}
+                    </p>
+                  </button>
+                ) : null}
               </div>
             </section>
 
@@ -756,6 +833,55 @@ export function DesignersChoiceFlow({
                         ))}
                       </select>
                     </label>
+                  ) : null}
+                </>
+              ) : fulfillmentType === "in_town_pickup" ? (
+                <>
+                  <h2 className="font-serif text-2xl text-bark">
+                    Choose your pickup
+                  </h2>
+                  <label className="block text-sm">
+                    Scheduled location &amp; time
+                    <select
+                      className="input mt-1 w-full"
+                      value={inTownPickupSlotId ?? ""}
+                      onChange={(e) => {
+                        const id = e.target.value || null;
+                        setInTownPickupSlotId(id);
+                        const slot = inTownSlots.find((s) => s.id === id);
+                        setFulfillmentDate(slot?.pickupDate ?? "");
+                      }}
+                    >
+                      <option value="">Select a pickup</option>
+                      {inTownSlots.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {inTownSlotOptionLabel(s)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {selectedInTownSlot?.location ? (
+                    <div className="border border-parchment bg-cream/40 px-4 py-3 text-sm text-stone">
+                      <p className="font-medium text-bark">
+                        {selectedInTownSlot.location.name}
+                      </p>
+                      <p className="mt-1">
+                        {selectedInTownSlot.location.addressStreet}
+                        {selectedInTownSlot.location.addressLine2
+                          ? `, ${selectedInTownSlot.location.addressLine2}`
+                          : ""}
+                      </p>
+                      <p>
+                        {selectedInTownSlot.location.addressCity},{" "}
+                        {selectedInTownSlot.location.addressState}{" "}
+                        {selectedInTownSlot.location.addressZip}
+                      </p>
+                      {selectedInTownSlot.location.notes ? (
+                        <p className="mt-2 text-xs">
+                          {selectedInTownSlot.location.notes}
+                        </p>
+                      ) : null}
+                    </div>
                   ) : null}
                 </>
               ) : (
@@ -1172,6 +1298,18 @@ export function DesignersChoiceFlow({
                               )?.label ?? ""
                             }`
                           : ""}
+                      </p>
+                    ) : null}
+                  </li>
+                ) : fulfillmentType === "in_town_pickup" ? (
+                  <li className="text-stone">
+                    <div className="flex justify-between gap-3">
+                      <span>In Town Pickup</span>
+                      <span className="text-bark">No charge</span>
+                    </div>
+                    {selectedInTownSlot ? (
+                      <p className="mt-1 text-xs text-stone">
+                        {inTownSlotOptionLabel(selectedInTownSlot)}
                       </p>
                     ) : null}
                   </li>

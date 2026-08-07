@@ -15,6 +15,7 @@ import {
 } from "@/lib/order/live-smoke";
 import { computeOrderPricing, assertPricingNotTampered } from "@/lib/order/pricing";
 import {
+  getInTownPickupSlotById,
   getPickupWindowById,
   getProductBySlug,
   getVesselById,
@@ -109,6 +110,10 @@ export async function POST(request: Request) {
       typeof payload.pickupWindowId === "string"
         ? payload.pickupWindowId.trim()
         : null,
+    inTownPickupSlotId:
+      typeof payload.inTownPickupSlotId === "string"
+        ? payload.inTownPickupSlotId.trim()
+        : null,
     addressZip:
       typeof payload.addressZip === "string" ? payload.addressZip.trim() : null,
     addressStreet:
@@ -183,10 +188,11 @@ export async function POST(request: Request) {
 
   if (
     input.fulfillmentType !== "delivery" &&
-    input.fulfillmentType !== "pickup"
+    input.fulfillmentType !== "pickup" &&
+    input.fulfillmentType !== "in_town_pickup"
   ) {
     return NextResponse.json(
-      { error: "Choose delivery or farm pickup." },
+      { error: "Choose delivery, farm pickup, or in-town pickup." },
       { status: 400 },
     );
   }
@@ -209,7 +215,11 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  if (input.fulfillmentType === "pickup" && !product.allowsPickup) {
+  if (
+    (input.fulfillmentType === "pickup" ||
+      input.fulfillmentType === "in_town_pickup") &&
+    !product.allowsPickup
+  ) {
     return NextResponse.json(
       { error: "This arrangement is delivery only." },
       { status: 400 },
@@ -321,6 +331,42 @@ export async function POST(request: Request) {
       // Authoritative normalized ZIP from server lookup
       input.addressZip = zoneResult.zip;
     }
+  } else if (input.fulfillmentType === "in_town_pickup") {
+    if (!input.inTownPickupSlotId) {
+      return NextResponse.json(
+        { error: "Please select an in-town pickup time." },
+        { status: 400 },
+      );
+    }
+    const slot = await getInTownPickupSlotById(input.inTownPickupSlotId);
+    if (!slot || slot.pickupDate !== input.fulfillmentDate) {
+      return NextResponse.json(
+        { error: "That in-town pickup is not available." },
+        { status: 400 },
+      );
+    }
+    if ((slot.remainingCapacity ?? 0) < 1) {
+      return NextResponse.json(
+        { error: "That in-town pickup is full." },
+        { status: 400 },
+      );
+    }
+    const loc = slot.location;
+    if (!loc) {
+      return NextResponse.json(
+        { error: "That in-town pickup is not available." },
+        { status: 400 },
+      );
+    }
+    // Snapshot location onto the order for receipts / farm ops
+    input.addressStreet = loc.addressStreet;
+    input.addressLine2 = loc.addressLine2;
+    input.addressCity = loc.addressCity;
+    input.addressState = loc.addressState;
+    input.addressZip = loc.addressZip;
+    if (loc.notes.trim() && !input.deliveryInstructions) {
+      input.deliveryInstructions = loc.notes.trim();
+    }
   } else {
     if (!input.pickupWindowId) {
       return NextResponse.json(
@@ -364,6 +410,10 @@ export async function POST(request: Request) {
     fulfillment_date: input.fulfillmentDate,
     pickup_window_id:
       input.fulfillmentType === "pickup" ? input.pickupWindowId : null,
+    in_town_pickup_slot_id:
+      input.fulfillmentType === "in_town_pickup"
+        ? input.inTownPickupSlotId
+        : null,
     delivery_zone_id: deliveryZoneId,
     delivery_zone_name: deliveryZoneName,
     buyer_name: input.buyerName,
@@ -399,7 +449,37 @@ export async function POST(request: Request) {
     .select("id")
     .single();
 
-  // Before migrations 032/033, optional columns may be missing
+  // Before migrations 032/033/035, optional columns may be missing
+  if (
+    orderErr &&
+    /in_town_pickup_slot_id|schema cache|PGRST204/i.test(
+      orderErr.message ?? "",
+    )
+  ) {
+    if (input.fulfillmentType === "in_town_pickup") {
+      return NextResponse.json(
+        {
+          error:
+            "In-town pickup is not available yet. Please choose delivery or farm pickup.",
+        },
+        { status: 503 },
+      );
+    }
+    const { in_town_pickup_slot_id: _slot, ...without035 } = orderBase;
+    const retry035 = await supabase
+      .from("ss_orders")
+      .insert({
+        ...without035,
+        presentation: resolvedPresentation,
+        is_gift: Boolean(input.isGift),
+        hide_pricing: Boolean(input.hidePricing),
+      })
+      .select("id")
+      .single();
+    order = retry035.data;
+    orderErr = retry035.error;
+  }
+
   if (
     orderErr &&
     /delivery_zone_name|address_line2|schema cache|PGRST204/i.test(
@@ -409,6 +489,7 @@ export async function POST(request: Request) {
     const {
       delivery_zone_name: _zn,
       address_line2: _a2,
+      in_town_pickup_slot_id: _slot2,
       ...without033
     } = orderBase;
     const retry033 = await supabase
@@ -434,6 +515,7 @@ export async function POST(request: Request) {
     const {
       delivery_zone_name: _zn2,
       address_line2: _a22,
+      in_town_pickup_slot_id: _slot3,
       ...core
     } = orderBase;
     const retry032 = await supabase
@@ -459,6 +541,10 @@ export async function POST(request: Request) {
     fulfillmentDate: input.fulfillmentDate,
     pickupWindowId:
       input.fulfillmentType === "pickup" ? input.pickupWindowId : null,
+    inTownPickupSlotId:
+      input.fulfillmentType === "in_town_pickup"
+        ? input.inTownPickupSlotId
+        : null,
     orderId: order.id,
     reservationId: input.reservationId,
   });

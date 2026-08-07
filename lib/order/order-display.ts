@@ -54,11 +54,13 @@ export type OrderSuccessSummary = {
   displayNumber: string;
   arrangementLabel: string;
   presentationLabel: string;
-  fulfillmentType: "delivery" | "pickup";
+  fulfillmentType: "delivery" | "pickup" | "in_town_pickup";
   fulfillmentLabel: string;
   deliveryRegionLabel: string | null;
   fulfillmentDateLabel: string | null;
   pickupWindowLabel: string | null;
+  /** In-town location name + address line when applicable */
+  inTownLocationLabel: string | null;
   expectedLabel: string | null;
   totalCents: number;
 };

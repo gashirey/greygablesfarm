@@ -26,6 +26,11 @@ const links = [
     title: "Pickup & capacity",
     body: "Fulfillment dates, windows, and capacity.",
   },
+  {
+    href: "/admin/order/in-town",
+    title: "In Town pickup",
+    body: "Scheduled office/market pickup locations and times.",
+  },
 ];
 
 export default function AdminOrderHubPage() {

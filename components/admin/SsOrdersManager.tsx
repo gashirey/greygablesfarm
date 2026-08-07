@@ -14,6 +14,7 @@ type OrderRow = {
   recipient_phone: string | null;
   address_street: string | null;
   address_city: string | null;
+  address_state?: string | null;
   address_zip: string | null;
   delivery_instructions: string | null;
   card_message: string | null;
@@ -25,7 +26,20 @@ type OrderRow = {
   fulfillment_status: FulfillmentStatus;
   ss_products: { name: string; slug: string } | null;
   ss_vessels: { name: string } | null;
+  ss_in_town_pickup_slots?: {
+    label: string;
+    starts_at: string;
+    ends_at: string;
+    ss_pickup_locations: { name: string } | { name: string }[] | null;
+  } | null;
 };
+
+function fulfillmentLabel(type: string): string {
+  if (type === "in_town_pickup") return "In Town Pickup";
+  if (type === "pickup") return "Farm Pickup";
+  if (type === "delivery") return "Delivery";
+  return type;
+}
 
 const STATUS_OPTIONS = Object.keys(FULFILLMENT_STATUS_LABELS) as FulfillmentStatus[];
 
@@ -170,10 +184,22 @@ export function SsOrdersManager() {
                   {(o.total_cents / 100).toFixed(0)}
                 </p>
                 <p className="text-xs text-stone">
-                  {o.buyer_name} · {o.buyer_email} · {o.fulfillment_type}{" "}
-                  {o.fulfillment_date}
+                  {o.buyer_name} · {o.buyer_email} ·{" "}
+                  {fulfillmentLabel(o.fulfillment_type)} {o.fulfillment_date}
                   {o.ss_vessels ? ` · ${o.ss_vessels.name}` : ""}
                 </p>
+                {o.fulfillment_type === "in_town_pickup" && o.address_street ? (
+                  <p className="mt-1 text-xs text-stone">
+                    {(() => {
+                      const raw = o.ss_in_town_pickup_slots?.ss_pickup_locations;
+                      const loc = Array.isArray(raw) ? raw[0] : raw;
+                      return loc?.name ? `${loc.name} · ` : "";
+                    })()}
+                    {o.address_street}
+                    {o.address_city ? `, ${o.address_city}` : ""}
+                    {o.address_zip ? ` ${o.address_zip}` : ""}
+                  </p>
+                ) : null}
                 <p className="mt-1 font-mono text-[10px] text-stone">{o.id}</p>
               </div>
               <p className="text-xs text-stone">

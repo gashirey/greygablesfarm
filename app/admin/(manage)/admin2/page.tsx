@@ -74,6 +74,11 @@ const sections: HubSection[] = [
         note: "Dates and windows",
       },
       {
+        href: "/admin/order/in-town",
+        label: "In Town pickup",
+        note: "Scheduled locations",
+      },
+      {
         href: "/order",
         label: "Public checkout",
         note: "/order",

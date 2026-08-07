@@ -16,21 +16,46 @@ export async function GET(request: Request) {
   const payment = url.searchParams.get("payment")?.trim() ?? "";
 
   const supabase = createServiceClient();
+  const selectFull =
+    "id, created_at, buyer_name, buyer_email, buyer_phone, recipient_name, recipient_phone, address_street, address_city, address_state, address_zip, delivery_instructions, card_message, notes, fulfillment_type, fulfillment_date, total_cents, payment_status, fulfillment_status, ss_products(name, slug), ss_vessels(name), ss_in_town_pickup_slots(label, starts_at, ends_at, ss_pickup_locations(name))";
+  const selectCore =
+    "id, created_at, buyer_name, buyer_email, buyer_phone, recipient_name, recipient_phone, address_street, address_city, address_zip, delivery_instructions, card_message, notes, fulfillment_type, fulfillment_date, total_cents, payment_status, fulfillment_status, ss_products(name, slug), ss_vessels(name)";
+
   let query = supabase
     .from("ss_orders")
-    .select(
-      "id, created_at, buyer_name, buyer_email, buyer_phone, recipient_name, recipient_phone, address_street, address_city, address_zip, delivery_instructions, card_message, notes, fulfillment_type, fulfillment_date, total_cents, payment_status, fulfillment_status, ss_products(name, slug), ss_vessels(name)",
-    )
+    .select(selectFull)
     .order("created_at", { ascending: false })
     .limit(100);
 
   if (status) query = query.eq("fulfillment_status", status);
   if (payment) query = query.eq("payment_status", payment);
 
-  const { data, error } = await query;
+  const first = await query;
+  let data: unknown[] | null = first.data as unknown[] | null;
+  let error = first.error;
+  if (
+    error &&
+    /ss_in_town|address_state|schema cache|PGRST/i.test(error.message)
+  ) {
+    let fallback = supabase
+      .from("ss_orders")
+      .select(selectCore)
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (status) fallback = fallback.eq("fulfillment_status", status);
+    if (payment) fallback = fallback.eq("payment_status", payment);
+    const retry = await fallback;
+    data = retry.data as unknown[] | null;
+    error = retry.error;
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-  let orders = data ?? [];
+  let orders = (data ?? []) as Array<{
+    buyer_name?: string | null;
+    buyer_email?: string | null;
+    id: string;
+    [key: string]: unknown;
+  }>;
   if (q) {
     orders = orders.filter(
       (o) =>

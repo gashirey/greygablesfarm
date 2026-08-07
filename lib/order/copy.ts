@@ -36,6 +36,9 @@ export type OrderPageCopy = {
   deliveryLocalBlurb: string;
   deliveryPickupName: string;
   deliveryPickupBlurb: string;
+  /** Shown only when at least one upcoming in-town slot exists */
+  deliveryInTownName: string;
+  deliveryInTownBlurb: string;
   deliveryNote: string;
   pickupNote: string;
   whereGoingTitle: string;
@@ -98,6 +101,9 @@ export const DEFAULT_ORDER_PAGE_COPY: OrderPageCopy = {
   deliveryLocalBlurb: "We'll hand-deliver your arrangement to the recipient.",
   deliveryPickupName: "Farm Pickup",
   deliveryPickupBlurb: "Collect your arrangement at Grey Gables Farm in Louisa.",
+  deliveryInTownName: "In Town Pickup",
+  deliveryInTownBlurb:
+    "Collect your arrangement at a scheduled Richmond-area location.",
   deliveryNote: "",
   pickupNote: "",
   whereGoingTitle: "Where is it going?",

@@ -71,6 +71,8 @@ const SECTIONS: { title: string; hint?: string; fields: Field[] }[] = [
       { key: "deliveryLocalBlurb", label: "Local Delivery — blurb" },
       { key: "deliveryPickupName", label: "Farm Pickup — name" },
       { key: "deliveryPickupBlurb", label: "Farm Pickup — blurb" },
+      { key: "deliveryInTownName", label: "In Town Pickup — name" },
+      { key: "deliveryInTownBlurb", label: "In Town Pickup — blurb" },
       { key: "whereGoingTitle", label: "Where is it going — heading" },
       { key: "zipHelper", label: "Delivery ZIP helper" },
       {

@@ -64,7 +64,13 @@ export async function sendSsOrderNotifications(
     `Arrangement: ${product?.name ?? "—"}`,
     vessel ? `Vessel: ${vessel.name}` : null,
     order.presentation ? `Presentation: ${order.presentation}` : null,
-    `Fulfillment: ${order.fulfillment_type}`,
+    `Fulfillment: ${
+      order.fulfillment_type === "in_town_pickup"
+        ? "In Town Pickup"
+        : order.fulfillment_type === "pickup"
+          ? "Farm Pickup"
+          : order.fulfillment_type
+    }`,
     `Date: ${order.fulfillment_date}`,
     zoneName ? `Delivery zone: ${zoneName}` : null,
     "",
@@ -126,7 +132,11 @@ export async function sendSsOrderNotifications(
     const phones = getFarmNotifyPhones();
     if (phones.length) {
       const fulfillLabel =
-        order.fulfillment_type === "pickup" ? "pickup" : "delivery";
+        order.fulfillment_type === "pickup"
+          ? "farm pickup"
+          : order.fulfillment_type === "in_town_pickup"
+            ? "in-town pickup"
+            : "delivery";
       const smsBody = [
         `Grey Gables order paid: ${product?.name ?? "Arrangement"} ${formatCents(order.total_cents)}`,
         `${fulfillLabel} ${order.fulfillment_date}`,

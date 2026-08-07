@@ -3,10 +3,14 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { normalizeDeliveryZip } from "./delivery-regions";
 import {
   mapFulfillmentDate,
+  mapInTownPickupSlot,
+  mapPickupLocation,
   mapPickupWindow,
   mapProduct,
   mapVessel,
   mapZone,
+  type InTownPickupSlotRow,
+  type PickupLocationRow,
   type ProductRow,
   type VesselRow,
   type ZoneRow,
@@ -22,6 +26,8 @@ import {
 import type {
   SsDeliveryZone,
   SsFulfillmentDate,
+  SsInTownPickupSlot,
+  SsPickupLocation,
   SsPickupWindow,
   SsProduct,
   SsVessel,
@@ -394,6 +400,131 @@ export async function getPickupWindowById(
   });
 }
 
+export async function getInTownSlotBooked(slotId: string): Promise<number> {
+  const supabase = client();
+  if (!supabase) return 0;
+  const now = new Date().toISOString();
+  const { data } = await supabase
+    .from("ss_reservations")
+    .select("id, status, expires_at")
+    .eq("in_town_pickup_slot_id", slotId)
+    .in("status", ["held", "committed"]);
+
+  return (data ?? []).filter(
+    (r) => r.status === "committed" || r.expires_at >= now,
+  ).length;
+}
+
+function formatTimeLabel(time: string): string {
+  const [hStr, mStr] = time.split(":");
+  const h = Number(hStr);
+  const m = Number(mStr);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return time.slice(0, 5);
+  const d = new Date(2000, 0, 1, h, m);
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: m === 0 ? undefined : "2-digit",
+  }).format(d);
+}
+
+export function inTownSlotDisplayLabel(slot: SsInTownPickupSlot): string {
+  if (slot.label.trim()) return slot.label.trim();
+  return `${formatTimeLabel(slot.startsAt)} – ${formatTimeLabel(slot.endsAt)}`;
+}
+
+/** Upcoming in-town slots with remaining capacity (for checkout). */
+export async function listUpcomingInTownPickupSlots(options?: {
+  fromDate?: string;
+  days?: number;
+}): Promise<SsInTownPickupSlot[]> {
+  const supabase = client();
+  if (!supabase) return [];
+
+  const from = options?.fromDate ?? new Date().toISOString().slice(0, 10);
+  const days = options?.days ?? 60;
+  const toDate = new Date(`${from}T12:00:00Z`);
+  toDate.setUTCDate(toDate.getUTCDate() + days);
+  const to = toDate.toISOString().slice(0, 10);
+
+  const { data, error } = await supabase
+    .from("ss_in_town_pickup_slots")
+    .select("*, ss_pickup_locations(*)")
+    .eq("is_active", true)
+    .gte("pickup_date", from)
+    .lte("pickup_date", to)
+    .order("pickup_date", { ascending: true })
+    .order("starts_at", { ascending: true });
+
+  if (error) {
+    if (/ss_in_town_pickup_slots|schema cache|PGRST/i.test(error.message)) {
+      return [];
+    }
+    console.error("[ss_in_town_pickup_slots]", error.message);
+    return [];
+  }
+
+  const result: SsInTownPickupSlot[] = [];
+  for (const row of (data ?? []) as InTownPickupSlotRow[]) {
+    const locRaw = row.ss_pickup_locations;
+    const loc = Array.isArray(locRaw) ? locRaw[0] : locRaw;
+    if (!loc || !loc.is_active) continue;
+    const booked = await getInTownSlotBooked(row.id);
+    if (booked >= row.capacity) continue;
+    result.push(
+      mapInTownPickupSlot({
+        ...row,
+        remaining_capacity: Math.max(0, row.capacity - booked),
+      }),
+    );
+  }
+  return result;
+}
+
+export async function getInTownPickupSlotById(
+  id: string,
+): Promise<SsInTownPickupSlot | null> {
+  const supabase = client();
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from("ss_in_town_pickup_slots")
+    .select("*, ss_pickup_locations(*)")
+    .eq("id", id)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (error || !data) return null;
+  const mapped = mapInTownPickupSlot(data as InTownPickupSlotRow);
+  if (!mapped.location?.isActive) return null;
+  const booked = await getInTownSlotBooked(id);
+  return {
+    ...mapped,
+    remainingCapacity: Math.max(0, mapped.capacity - booked),
+  };
+}
+
+export async function listPickupLocationsAdmin(): Promise<SsPickupLocation[]> {
+  const supabase = client();
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from("ss_pickup_locations")
+    .select("*")
+    .order("name", { ascending: true });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as PickupLocationRow[]).map(mapPickupLocation);
+}
+
+export async function listInTownSlotsAdmin(): Promise<SsInTownPickupSlot[]> {
+  const supabase = client();
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from("ss_in_town_pickup_slots")
+    .select("*, ss_pickup_locations(*)")
+    .order("pickup_date", { ascending: true })
+    .order("starts_at", { ascending: true })
+    .limit(120);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as InTownPickupSlotRow[]).map(mapInTownPickupSlot);
+}
+
 /** Load order summary for the post-checkout success page (service role). */
 export async function getOrderSuccessSummary(
   orderId: string,
@@ -402,9 +533,9 @@ export async function getOrderSuccessSummary(
   if (!supabase) return null;
 
   const selectFull =
-    "id, fulfillment_type, fulfillment_date, pickup_window_id, presentation, vessel_cents, total_cents, delivery_zone_name, ss_products(name), ss_delivery_zones(name), ss_pickup_windows(label)";
+    "id, fulfillment_type, fulfillment_date, pickup_window_id, in_town_pickup_slot_id, presentation, vessel_cents, total_cents, delivery_zone_name, address_street, address_city, address_state, address_zip, ss_products(name), ss_delivery_zones(name), ss_pickup_windows(label), ss_in_town_pickup_slots(label, starts_at, ends_at, ss_pickup_locations(name))";
   const selectCore =
-    "id, fulfillment_type, fulfillment_date, pickup_window_id, vessel_cents, total_cents, ss_products(name), ss_delivery_zones(name), ss_pickup_windows(label)";
+    "id, fulfillment_type, fulfillment_date, pickup_window_id, vessel_cents, total_cents, address_street, address_city, address_state, address_zip, ss_products(name), ss_delivery_zones(name), ss_pickup_windows(label)";
 
   let { data: order, error } = await supabase
     .from("ss_orders")
@@ -414,7 +545,9 @@ export async function getOrderSuccessSummary(
 
   if (
     error &&
-    /presentation|delivery_zone_name|schema cache|PGRST/i.test(error.message)
+    /presentation|delivery_zone_name|in_town|schema cache|PGRST/i.test(
+      error.message,
+    )
   ) {
     ({ data: order, error } = await supabase
       .from("ss_orders")
@@ -440,10 +573,39 @@ export async function getOrderSuccessSummary(
     | { label: string }
     | { label: string }[]
     | null;
+  const inTownRaw = (
+    "ss_in_town_pickup_slots" in order
+      ? order.ss_in_town_pickup_slots
+      : null
+  ) as
+    | {
+        label: string;
+        starts_at: string;
+        ends_at: string;
+        ss_pickup_locations:
+          | { name: string }
+          | { name: string }[]
+          | null;
+      }
+    | {
+        label: string;
+        starts_at: string;
+        ends_at: string;
+        ss_pickup_locations:
+          | { name: string }
+          | { name: string }[]
+          | null;
+      }[]
+    | null;
 
   const product = Array.isArray(productRaw) ? productRaw[0] : productRaw;
   const zone = Array.isArray(zoneRaw) ? zoneRaw[0] : zoneRaw;
   const pickup = Array.isArray(pickupRaw) ? pickupRaw[0] : pickupRaw;
+  const inTown = Array.isArray(inTownRaw) ? inTownRaw[0] : inTownRaw;
+  const inTownLocRaw = inTown?.ss_pickup_locations;
+  const inTownLoc = Array.isArray(inTownLocRaw)
+    ? inTownLocRaw[0]
+    : inTownLocRaw;
 
   const regionRaw =
     ("delivery_zone_name" in order
@@ -456,21 +618,70 @@ export async function getOrderSuccessSummary(
     ? formatFulfillmentDateLabel(String(order.fulfillment_date))
     : null;
   const pickupLabel = pickup?.label?.trim() || null;
-  const isDelivery = order.fulfillment_type === "delivery";
+  const fulfillmentType = order.fulfillment_type as
+    | "delivery"
+    | "pickup"
+    | "in_town_pickup";
+  const isDelivery = fulfillmentType === "delivery";
+  const isInTown = fulfillmentType === "in_town_pickup";
+
+  let inTownWindowLabel: string | null = null;
+  if (inTown) {
+    const stub: SsInTownPickupSlot = {
+      id: "",
+      locationId: "",
+      pickupDate: String(order.fulfillment_date),
+      startsAt: inTown.starts_at,
+      endsAt: inTown.ends_at,
+      label: inTown.label ?? "",
+      capacity: 0,
+      isActive: true,
+      notes: "",
+    };
+    inTownWindowLabel = inTownSlotDisplayLabel(stub);
+  }
+
+  const street =
+    "address_street" in order ? (order.address_street as string | null) : null;
+  const city =
+    "address_city" in order ? (order.address_city as string | null) : null;
+  const state =
+    "address_state" in order ? (order.address_state as string | null) : null;
+  const zip =
+    "address_zip" in order ? (order.address_zip as string | null) : null;
+  const addressLine =
+    street && city
+      ? `${street}, ${city}${state ? `, ${state}` : ""}${zip ? ` ${zip}` : ""}`
+      : null;
+  const inTownLocationLabel = isInTown
+    ? [inTownLoc?.name, addressLine].filter(Boolean).join(" · ") || null
+    : null;
 
   let expectedLabel: string | null = null;
   if (dateLabel) {
-    expectedLabel = isDelivery
-      ? `Expected delivery · ${dateLabel}`
-      : pickupLabel
+    if (isDelivery) {
+      expectedLabel = `Expected delivery · ${dateLabel}`;
+    } else if (isInTown) {
+      expectedLabel = inTownWindowLabel
+        ? `In Town Pickup · ${dateLabel} · ${inTownWindowLabel}`
+        : `In Town Pickup · ${dateLabel}`;
+    } else {
+      expectedLabel = pickupLabel
         ? `Pickup · ${dateLabel} · ${pickupLabel}`
         : `Pickup · ${dateLabel}`;
+    }
   }
 
   const presentation =
     "presentation" in order
       ? (order.presentation as string | null)
       : null;
+
+  const fulfillmentLabel = isDelivery
+    ? "Local Delivery"
+    : isInTown
+      ? "In Town Pickup"
+      : "Farm Pickup";
 
   return {
     orderId: order.id,
@@ -480,11 +691,16 @@ export async function getOrderSuccessSummary(
       presentation,
       Number(order.vessel_cents) || 0,
     ),
-    fulfillmentType: isDelivery ? "delivery" : "pickup",
-    fulfillmentLabel: isDelivery ? "Local Delivery" : "Farm Pickup",
+    fulfillmentType,
+    fulfillmentLabel,
     deliveryRegionLabel: isDelivery ? regionLabel : null,
     fulfillmentDateLabel: dateLabel,
-    pickupWindowLabel: isDelivery ? null : pickupLabel,
+    pickupWindowLabel: isDelivery
+      ? null
+      : isInTown
+        ? inTownWindowLabel
+        : pickupLabel,
+    inTownLocationLabel,
     expectedLabel,
     totalCents: Number(order.total_cents) || 0,
   };

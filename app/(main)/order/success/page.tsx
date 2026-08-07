@@ -147,6 +147,12 @@ export default async function OrderSuccessPage({ searchParams }: Props) {
                   value={summary.pickupWindowLabel}
                 />
               ) : null}
+              {summary.inTownLocationLabel ? (
+                <SummaryRow
+                  label="Pickup Location"
+                  value={summary.inTownLocationLabel}
+                />
+              ) : null}
               <div className="border-t border-parchment pt-3">
                 <SummaryRow
                   label="Total Paid"

@@ -1,4 +1,4 @@
-export type FulfillmentType = "delivery" | "pickup";
+export type FulfillmentType = "delivery" | "pickup" | "in_town_pickup";
 
 export type PaymentStatus = "pending" | "paid" | "failed" | "cancelled";
 
@@ -84,6 +84,34 @@ export type SsFulfillmentDate = {
   windows?: SsPickupWindow[];
 };
 
+/** Reusable in-town pickup place (office, market, etc.). */
+export type SsPickupLocation = {
+  id: string;
+  name: string;
+  addressStreet: string;
+  addressLine2: string | null;
+  addressCity: string;
+  addressState: string;
+  addressZip: string;
+  notes: string;
+  isActive: boolean;
+};
+
+/** One scheduled in-town pickup window at a location. */
+export type SsInTownPickupSlot = {
+  id: string;
+  locationId: string;
+  pickupDate: string;
+  startsAt: string;
+  endsAt: string;
+  label: string;
+  capacity: number;
+  isActive: boolean;
+  notes: string;
+  remainingCapacity?: number;
+  location?: SsPickupLocation;
+};
+
 export type PriceBreakdown = {
   arrangementCents: number;
   vesselCents: number;
@@ -108,6 +136,8 @@ export type CheckoutInput = {
   fulfillmentType: FulfillmentType;
   fulfillmentDate: string;
   pickupWindowId?: string | null;
+  /** Required when fulfillmentType is in_town_pickup */
+  inTownPickupSlotId?: string | null;
   addressZip?: string | null;
   addressStreet?: string | null;
   addressLine2?: string | null;

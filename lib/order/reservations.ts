@@ -3,6 +3,8 @@ import { RESERVATION_MINUTES } from "./config";
 import {
   getCapacityUsed,
   getFulfillmentDate,
+  getInTownPickupSlotById,
+  getInTownSlotBooked,
   getPickupWindowBooked,
   getPickupWindowById,
   getProductById,
@@ -14,6 +16,7 @@ export type CreateReservationInput = {
   vesselId?: string | null;
   fulfillmentDate: string;
   pickupWindowId?: string | null;
+  inTownPickupSlotId?: string | null;
   orderId?: string | null;
   /** Existing vessel-only hold to upgrade instead of creating a new row. */
   reservationId?: string | null;
@@ -149,6 +152,17 @@ export async function createReservation(
     }
   }
 
+  if (input.inTownPickupSlotId) {
+    const slot = await getInTownPickupSlotById(input.inTownPickupSlotId);
+    if (!slot || slot.pickupDate !== input.fulfillmentDate) {
+      return { ok: false, error: "That in-town pickup is not available." };
+    }
+    const booked = await getInTownSlotBooked(input.inTownPickupSlotId);
+    if (booked >= slot.capacity) {
+      return { ok: false, error: "That in-town pickup is full." };
+    }
+  }
+
   const now = new Date().toISOString();
   if (input.reservationId) {
     const { data: existing } = await supabase
@@ -172,6 +186,7 @@ export async function createReservation(
           .update({
             fulfillment_date: input.fulfillmentDate,
             pickup_window_id: input.pickupWindowId ?? null,
+            in_town_pickup_slot_id: input.inTownPickupSlotId ?? null,
             capacity_cost: product.capacityCost,
             order_id: input.orderId ?? null,
             expires_at: expiresAt,
@@ -212,20 +227,35 @@ export async function createReservation(
     Date.now() + RESERVATION_MINUTES * 60 * 1000,
   ).toISOString();
 
-  const { data: reservation, error } = await supabase
+  const reservationBase = {
+    product_id: input.productId,
+    vessel_id: input.vesselId ?? null,
+    fulfillment_date: input.fulfillmentDate,
+    pickup_window_id: input.pickupWindowId ?? null,
+    in_town_pickup_slot_id: input.inTownPickupSlotId ?? null,
+    capacity_cost: product.capacityCost,
+    order_id: input.orderId ?? null,
+    status: "held" as const,
+    expires_at: expiresAt,
+  };
+
+  let { data: reservation, error } = await supabase
     .from("ss_reservations")
-    .insert({
-      product_id: input.productId,
-      vessel_id: input.vesselId ?? null,
-      fulfillment_date: input.fulfillmentDate,
-      pickup_window_id: input.pickupWindowId ?? null,
-      capacity_cost: product.capacityCost,
-      order_id: input.orderId ?? null,
-      status: "held",
-      expires_at: expiresAt,
-    })
+    .insert(reservationBase)
     .select("id, expires_at")
     .single();
+
+  if (
+    error &&
+    /in_town_pickup_slot_id|schema cache|PGRST204/i.test(error.message ?? "")
+  ) {
+    const { in_town_pickup_slot_id: _slot, ...withoutSlot } = reservationBase;
+    ({ data: reservation, error } = await supabase
+      .from("ss_reservations")
+      .insert(withoutSlot)
+      .select("id, expires_at")
+      .single());
+  }
 
   if (error || !reservation) {
     if (product.requiresVessel && input.vesselId) {

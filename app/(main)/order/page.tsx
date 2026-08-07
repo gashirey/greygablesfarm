@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import { Section } from "@/components/Section";
 import { DesignersChoiceFlow } from "@/components/order/DesignersChoiceFlow";
-import { listActiveProducts, listAvailability } from "@/lib/order/queries";
+import {
+  listActiveProducts,
+  listAvailability,
+  listUpcomingInTownPickupSlots,
+} from "@/lib/order/queries";
 import { normalizeOrderScales } from "@/lib/order/scales";
 import { pageMetadata } from "@/lib/metadata";
 import { getPublicSiteConfig } from "@/lib/site-cms/queries";
@@ -29,10 +33,11 @@ type Props = {
 
 export default async function OrderIndexPage({ searchParams }: Props) {
   const { scale: rawScale } = await searchParams;
-  const [{ copy }, products, availability] = await Promise.all([
+  const [{ copy }, products, availability, inTownSlots] = await Promise.all([
     getPublicSiteConfig(),
     listActiveProducts(),
     listAvailability({ days: 21 }),
+    listUpcomingInTownPickupSlots({ days: 60 }),
   ]);
 
   const requested = rawScale?.trim().toLowerCase() ?? "";
@@ -56,6 +61,7 @@ export default async function OrderIndexPage({ searchParams }: Props) {
       <DesignersChoiceFlow
         products={scales}
         availability={availability}
+        inTownSlots={inTownSlots}
         copy={copy.orderPage}
         initialScaleSlug={resolvedInitial || initialScaleSlug}
       />

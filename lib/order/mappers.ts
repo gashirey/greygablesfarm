@@ -1,6 +1,8 @@
 import type {
   SsDeliveryZone,
   SsFulfillmentDate,
+  SsInTownPickupSlot,
+  SsPickupLocation,
   SsPickupWindow,
   SsProduct,
   SsVessel,
@@ -132,5 +134,63 @@ export function mapFulfillmentDate(row: {
     maxCapacity: row.max_capacity,
     isActive: row.is_active,
     remainingCapacity: row.remaining_capacity,
+  };
+}
+
+export type PickupLocationRow = {
+  id: string;
+  name: string;
+  address_street: string;
+  address_line2: string | null;
+  address_city: string;
+  address_state: string;
+  address_zip: string;
+  notes: string;
+  is_active: boolean;
+};
+
+export type InTownPickupSlotRow = {
+  id: string;
+  location_id: string;
+  pickup_date: string;
+  starts_at: string;
+  ends_at: string;
+  label: string;
+  capacity: number;
+  is_active: boolean;
+  notes: string;
+  remaining_capacity?: number;
+  ss_pickup_locations?: PickupLocationRow | PickupLocationRow[] | null;
+};
+
+export function mapPickupLocation(row: PickupLocationRow): SsPickupLocation {
+  return {
+    id: row.id,
+    name: row.name,
+    addressStreet: row.address_street,
+    addressLine2: row.address_line2,
+    addressCity: row.address_city,
+    addressState: row.address_state,
+    addressZip: row.address_zip,
+    notes: row.notes ?? "",
+    isActive: row.is_active,
+  };
+}
+
+export function mapInTownPickupSlot(row: InTownPickupSlotRow): SsInTownPickupSlot {
+  const locRaw = row.ss_pickup_locations;
+  const loc = Array.isArray(locRaw) ? locRaw[0] : locRaw;
+  return {
+    id: row.id,
+    locationId: row.location_id,
+    pickupDate: row.pickup_date,
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
+    label: row.label ?? "",
+    capacity: row.capacity,
+    isActive: row.is_active,
+    notes: row.notes ?? "",
+    remainingCapacity: row.remaining_capacity,
+    location: loc ? mapPickupLocation(loc) : undefined,
   };
 }
